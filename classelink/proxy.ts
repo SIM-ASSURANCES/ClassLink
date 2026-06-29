@@ -41,7 +41,53 @@ function isSuperAdminPath(pathname: string): boolean {
   return SUPER_ADMIN_PATHS.some(p => pathname.startsWith(p))
 }
 
-export default auth(function middleware(request: NextRequest) {
+/**
+ * Vérifie le cookie 2FA `${userId}:${expiresAt}.${hmacHex}` de façon COMPLÈTE,
+ * signature HMAC-SHA256 incluse, en Web Crypto pour rester compatible Edge.
+ * Le module `lib/auth/two-fa-cookie` utilise le `crypto` Node et ne peut pas
+ * tourner ici : on réimplémente donc la vérification cryptographique côté Edge,
+ * avec le même secret (`AUTH_SECRET`) et le même format que la signature.
+ */
+async function verify2FACookieEdge(value: string, userId: string): Promise<boolean> {
+  try {
+    const secret = process.env.AUTH_SECRET
+    if (!secret) return false
+
+    const lastDot = value.lastIndexOf('.')
+    if (lastDot === -1) return false
+    const payload = value.slice(0, lastDot)
+    const sig = value.slice(lastDot + 1)
+
+    const [uid, expiresAtStr] = payload.split(':')
+    if (uid !== userId) return false
+    const expiresAt = parseInt(expiresAtStr, 10)
+    if (isNaN(expiresAt) || Date.now() > expiresAt) return false
+
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    )
+    const buf = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload))
+    const expected = Array.from(new Uint8Array(buf))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+
+    // Comparaison à temps constant
+    if (expected.length !== sig.length) return false
+    let diff = 0
+    for (let i = 0; i < expected.length; i++) {
+      diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i)
+    }
+    return diff === 0
+  } catch {
+    return false
+  }
+}
+
+export default auth(async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const hostname = request.headers.get('host') ?? ''
   const session = (request as any).auth
@@ -75,23 +121,12 @@ export default auth(function middleware(request: NextRequest) {
   }
 
   // 2FA obligatoire : si activé et cookie de vérification absent/invalide → /two-factor
+  // La signature HMAC du cookie est désormais vérifiée intégralement (cf.
+  // verify2FACookieEdge) — une simple validation structurelle était contournable.
   if (session.user.twoFactorEnabled && pathname !== '/two-factor') {
     const twoFaVerified = request.cookies.get('2fa_verified')?.value
     const is2FAValid = twoFaVerified
-      ? (() => {
-          // Nouveau format HMAC : `${userId}:${expiresAt}.${hmacSig}`
-          // Vérification structurelle + userId + expiration (HMAC complet côté Server Action)
-          try {
-            const lastDot = twoFaVerified.lastIndexOf('.')
-            if (lastDot === -1) return false
-            const payload = twoFaVerified.slice(0, lastDot)
-            const [uid, expiresAtStr] = payload.split(':')
-            if (uid !== session.user.id) return false
-            const expiresAt = parseInt(expiresAtStr, 10)
-            if (isNaN(expiresAt) || Date.now() > expiresAt) return false
-            return true
-          } catch { return false }
-        })()
+      ? await verify2FACookieEdge(twoFaVerified, session.user.id)
       : false
     if (!is2FAValid) {
       return NextResponse.redirect(new URL('/two-factor', request.url))
