@@ -2,7 +2,7 @@
 
 import { signIn, signOut } from '@/lib/auth/config'
 import { publicPrisma } from '@/lib/db/public'
-import { getTenantPrisma } from '@/lib/db/tenant'
+import { getTenantPrisma, getSchemaFromHostname } from '@/lib/db/tenant'
 import { toActionError } from '@/lib/errors'
 import {
   forgotPasswordSchema,
@@ -30,6 +30,20 @@ import {
   buildSigned2FACookie,
 } from '@/lib/auth/two-fa-cookie'
 
+/**
+ * Résout l'école (schemaName) à partir du sous-domaine de la requête courante.
+ * Permet de ne cibler qu'un seul schéma à la connexion plutôt que de les scanner
+ * tous. Retourne null si non résoluble (domaine apex, localhost) → repli sur scan.
+ */
+async function resolveSchemaFromHost(): Promise<string | null> {
+  try {
+    const host = (await headers()).get('host')
+    return host ? await getSchemaFromHostname(host) : null
+  } catch {
+    return null
+  }
+}
+
 // ─── Connexion ────────────────────────────────────────────────────────────────
 export async function loginAction(
   prevState: ActionResult | null,
@@ -55,8 +69,11 @@ export async function loginAction(
   }
 
   try {
+    // Cible l'école du sous-domaine si résoluble (login O(1)), sinon scan complet.
+    const schemaHint = await resolveSchemaFromHost()
     await signIn('credentials', {
       ...parsed.data,
+      ...(schemaHint ? { schemaName: schemaHint } : {}),
       redirectTo: '/',
     })
     return { success: true, data: undefined }
@@ -96,11 +113,15 @@ export async function forgotPasswordAction(
   try {
     const { email } = parsed.data
 
-    // Chercher l'utilisateur dans tous les tenants actifs via le schéma public
-    const schools = await publicPrisma.school.findMany({
-      where: { status: { in: ['TRIAL', 'ACTIVE'] } },
-      select: { schemaName: true, name: true },
-    })
+    // Cible l'école du sous-domaine si résoluble, sinon scanne tous les tenants
+    // actifs via le schéma public.
+    const schemaHint = await resolveSchemaFromHost()
+    const schools = schemaHint
+      ? [{ schemaName: schemaHint, name: '' }]
+      : await publicPrisma.school.findMany({
+          where: { status: { in: ['TRIAL', 'ACTIVE'] } },
+          select: { schemaName: true, name: true },
+        })
 
     let found = false
     for (const school of schools) {

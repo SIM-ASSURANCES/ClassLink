@@ -27,16 +27,27 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         const db = publicPrisma as any
 
+        // Indice d'école résolu côté serveur (sous-domaine) par l'action de
+        // connexion. S'il est présent, on cible UN seul schéma au lieu de les
+        // scanner tous (login en O(1) au lieu de O(N écoles)). Sinon (domaine
+        // apex, dev), on retombe sur le scan complet — comportement inchangé.
+        const schemaHint =
+          typeof (credentials as any)?.schemaName === 'string' && (credentials as any).schemaName
+            ? ((credentials as any).schemaName as string)
+            : null
+
         // ── 0. Connexion automatique par jeton (après paiement) ────────────
         const autoToken = (credentials as any)?.autoLoginToken as string | undefined
         if (autoToken) {
           const tokenEmail = await verifyAutoLoginToken(autoToken)
           if (!tokenEmail) return null
           try {
-            const schools = await db.school.findMany({
-              where: { status: { in: ['TRIAL', 'ACTIVE'] } },
-              select: { schemaName: true },
-            })
+            const schools = schemaHint
+              ? [{ schemaName: schemaHint }]
+              : await db.school.findMany({
+                  where: { status: { in: ['TRIAL', 'ACTIVE'] } },
+                  select: { schemaName: true },
+                })
             for (const school of schools) {
               try {
                 const tenantDb = getTenantPrisma(school.schemaName) as any
@@ -104,10 +115,12 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
 
         // ── 2. Chercher dans tous les tenants actifs ───────────────────────
         try {
-          const schools = await db.school.findMany({
-            where: { status: { in: ['TRIAL', 'ACTIVE'] } },
-            select: { schemaName: true },
-          })
+          const schools = schemaHint
+            ? [{ schemaName: schemaHint }]
+            : await db.school.findMany({
+                where: { status: { in: ['TRIAL', 'ACTIVE'] } },
+                select: { schemaName: true },
+              })
 
           for (const school of schools) {
             try {
