@@ -1,0 +1,7 @@
+myclasslink.cloud {
+	reverse_proxy app:3000
+}
+
+www.myclasslink.cloud {
+	redir https://myclasslink.cloud{uri} permanent
+}

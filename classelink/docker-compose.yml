@@ -1,0 +1,100 @@
+services:
+  # ─── Base de données PostgreSQL ──────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: classelink-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: classelink
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: classelink
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U classelink -d classelink"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  # ─── Application Next.js ─────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      target: runner
+    container_name: classelink-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://classelink:${POSTGRES_PASSWORD}@db:5432/classelink
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+      - web
+
+  # ─── Reverse proxy + HTTPS automatique (Let's Encrypt) ───────────────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: classelink-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    networks:
+      - web
+
+  # ─── Outils ponctuels (migration / seed) ─────────────────────────────────────
+  # Ne démarrent jamais automatiquement (profile "tools").
+  # Utilisation :
+  #   docker compose run --rm migrate
+  #   docker compose run --rm seed
+  migrate:
+    build:
+      context: .
+      target: builder
+    profiles: ["tools"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://classelink:${POSTGRES_PASSWORD}@db:5432/classelink
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+    command: ["npx", "prisma", "db", "push", "--accept-data-loss"]
+
+  seed:
+    build:
+      context: .
+      target: builder
+    profiles: ["tools"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://classelink:${POSTGRES_PASSWORD}@db:5432/classelink
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+    command: ["npm", "run", "seed"]
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+  web:

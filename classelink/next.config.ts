@@ -1,6 +1,11 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  // Build de production autonome pour Docker (.next/standalone) — voir Dockerfile.
+  output: 'standalone',
+  outputFileTracingIncludes: {
+    '/*': ['node_modules/sharp/**/*'],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',
