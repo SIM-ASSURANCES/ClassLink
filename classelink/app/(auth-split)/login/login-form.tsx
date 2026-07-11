@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { loginAction } from '@/actions/auth'
 import type { ActionResult } from '@/types'
 import Link from 'next/link'
@@ -22,6 +22,15 @@ export function LoginForm({ error, callbackUrl }: Props) {
     null
   )
   const [showPassword, setShowPassword] = useState(false)
+
+  // Rechargement complet (plutôt qu'une navigation douce du routeur) pour
+  // garantir que le middleware relit le cookie de session tout juste posé —
+  // voir le commentaire dans actions/auth.ts::loginAction.
+  useEffect(() => {
+    if (state?.success) {
+      window.location.href = callbackUrl ? decodeURIComponent(callbackUrl) : '/'
+    }
+  }, [state, callbackUrl])
 
   const errorMessage =
     (error && ERROR_MESSAGES[error]) ??

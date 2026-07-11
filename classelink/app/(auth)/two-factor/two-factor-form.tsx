@@ -1,22 +1,22 @@
 'use client'
 
 import { useRef, useActionState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { verify2FALoginAction } from '@/actions/auth'
 
 export function TwoFactorForm() {
   const inputs = useRef<(HTMLInputElement | null)[]>([])
-  const router = useRouter()
 
   const [state, action, isPending] = useActionState(verify2FALoginAction, null)
 
-  // Rediriger vers le dashboard après succès
+  // Rechargement complet (pas une navigation douce du routeur) pour garantir
+  // que le middleware relit le cookie "2fa_verified" tout juste posé — même
+  // correctif que login-form.tsx.
   useEffect(() => {
     if (state?.success) {
-      router.push('/')
+      window.location.href = '/'
     }
-  }, [state, router])
+  }, [state])
 
   // Navigation automatique entre les cases
   function handleInput(index: number, value: string) {

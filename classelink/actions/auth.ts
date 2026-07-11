@@ -58,9 +58,16 @@ export async function loginAction(
   }
 
   try {
+    // redirect: false — le cookie de session vient d'être posé dans cette même
+    // réponse de Server Action ; laisser signIn() rediriger côté serveur peut
+    // servir au client une navigation douce dont le cache de route ne voit pas
+    // encore le nouveau cookie (symptôme : l'espace utilisateur n'apparaît
+    // qu'après un rafraîchissement manuel). Le client déclenche à la place un
+    // rechargement complet (voir login-form.tsx), garantissant que le
+    // middleware relit le cookie fraîchement posé.
     await signIn('credentials', {
       ...parsed.data,
-      redirectTo: '/',
+      redirect: false,
     })
     return { success: true, data: undefined }
   } catch (error) {
