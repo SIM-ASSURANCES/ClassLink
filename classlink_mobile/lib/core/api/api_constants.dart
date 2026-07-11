@@ -1,7 +1,7 @@
 class ApiConstants {
-  static const String baseUrl = 'http://192.168.1.4:3000'; // IP WiFi locale du PC (téléphone sur le même réseau)
-  // Émulateur Android → 'http://10.0.2.2:3000'
-  // Production déployée → 'https://<domaine>'
+  static const String baseUrl = 'https://myclasslink.cloud'; // Production
+  // Dev — émulateur Android → 'http://10.0.2.2:3000'
+  // Dev — téléphone sur le même WiFi que le PC → 'http://<IP locale du PC>:3000'
 
   static const String login        = '/api/mobile/auth/login';
   static const String refresh      = '/api/mobile/auth/refresh';

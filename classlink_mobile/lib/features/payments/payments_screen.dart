@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -5,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_bottom_nav.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -28,6 +30,7 @@ class PaymentsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Paiements')),
+      bottomNavigationBar: studentId == null ? const AppBottomNav(current: AppTab.payments) : null,
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),
@@ -76,6 +79,7 @@ class _PaymentCard extends StatefulWidget {
 class _PaymentCardState extends State<_PaymentCard> {
   bool _loading = false;
   String? _error;
+  bool _paymentUnavailable = false;
 
   Color _statusColor(String status) => switch (status) {
     'SUCCESS'  => AppTheme.success,
@@ -126,6 +130,19 @@ class _PaymentCardState extends State<_PaymentCard> {
       } else {
         setState(() { _error = 'Impossible d\'ouvrir le navigateur.'; });
       }
+    } on DioException catch (e) {
+      final serverMessage = e.response?.data is Map
+          ? (e.response?.data as Map)['error'] as String?
+          : null;
+      setState(() {
+        if (e.response?.statusCode == 409) {
+          _paymentUnavailable = true;
+          _error = serverMessage ??
+              'Paiement en ligne indisponible — l\'établissement n\'a pas encore activé de fournisseur de paiement.';
+        } else {
+          _error = serverMessage ?? 'Erreur lors de l\'initiation du paiement.';
+        }
+      });
     } catch (e) {
       setState(() { _error = e.toString().replaceAll('Exception: ', ''); });
     } finally {
@@ -238,39 +255,53 @@ class _PaymentCardState extends State<_PaymentCard> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     _error!,
-                    style: const TextStyle(fontSize: 12, color: AppTheme.danger),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _paymentUnavailable ? AppTheme.textSub : AppTheme.danger,
+                    ),
                   ),
                 ),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _loading ? null : _initiatePayment,
+                  onPressed: (_loading || _paymentUnavailable) ? null : _initiatePayment,
                   icon: _loading
                       ? const SizedBox(
                           width: 16, height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Icon(Icons.phone_android_rounded, size: 18),
+                      : Icon(
+                          _paymentUnavailable ? Icons.block_rounded : Icons.phone_android_rounded,
+                          size: 18,
+                        ),
                   label: Text(
-                    _loading ? 'Redirection…' : 'Payer par Mobile Money',
+                    _loading
+                        ? 'Redirection…'
+                        : _paymentUnavailable
+                            ? 'Paiement en ligne indisponible'
+                            : 'Payer par Mobile Money',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: Colors.white,
+                    backgroundColor: _paymentUnavailable ? AppTheme.border : AppTheme.primary,
+                    foregroundColor: _paymentUnavailable ? AppTheme.textSub : Colors.white,
+                    disabledBackgroundColor: AppTheme.border,
+                    disabledForegroundColor: AppTheme.textSub,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     elevation: 0,
                   ),
                 ),
               ),
-              const SizedBox(height: 6),
-              const Center(
-                child: Text(
-                  'Wave · Orange Money · MTN · Moov',
-                  style: TextStyle(fontSize: 10, color: AppTheme.textSub),
+              if (!_paymentUnavailable) ...[
+                const SizedBox(height: 6),
+                const Center(
+                  child: Text(
+                    'Wave · Orange Money · MTN · Moov',
+                    style: TextStyle(fontSize: 10, color: AppTheme.textSub),
+                  ),
                 ),
-              ),
+              ],
             ],
           ],
         ),
