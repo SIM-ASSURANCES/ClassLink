@@ -1,6 +1,11 @@
 'use server'
 
-import { nanoid } from 'nanoid'
+import { nanoid, customAlphabet } from 'nanoid'
+
+// Alphabet restreint (sans tiret) — le nom de schéma est injecté dans du SQL
+// brut via search_path et validé par SCHEMA_RE (lib/db/tenant.ts) qui
+// n'accepte que [a-z0-9] après "school_".
+const schemaSuffix = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8)
 import { hash } from 'bcryptjs'
 import { z } from 'zod'
 import { readFileSync } from 'fs'
@@ -66,7 +71,7 @@ export async function registerSchool(
     }
 
     const slug = `${slugify(schoolName)}-${nanoid(4).toLowerCase()}`
-    schemaName = `school_${nanoid(8).toLowerCase()}`
+    schemaName = `school_${schemaSuffix()}`
 
     // 1. École (statut PENDING : pas d'accès tant que le paiement n'est pas validé)
     const school = await db.school.create({

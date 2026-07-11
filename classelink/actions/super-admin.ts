@@ -1,7 +1,12 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { nanoid } from 'nanoid'
+import { nanoid, customAlphabet } from 'nanoid'
+
+// Alphabet restreint (sans tiret) — le nom de schéma est injecté dans du SQL
+// brut via search_path et validé par SCHEMA_RE (lib/db/tenant.ts) qui
+// n'accepte que [a-z0-9] après "school_".
+const schemaSuffix = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8)
 import { hash } from 'bcryptjs'
 import { z } from 'zod'
 import { publicPrisma } from '@/lib/db/public'
@@ -170,7 +175,7 @@ export async function createSchool(
       .replace(/-+/g, '-')
       .slice(0, 30)
     const slug = `${baseSlug}-${nanoid(4).toLowerCase()}`
-    const schemaName = `school_${nanoid(8).toLowerCase()}`
+    const schemaName = `school_${schemaSuffix()}`
 
     // 1. Créer l'entrée dans le schéma public
     const school = await db.school.create({
