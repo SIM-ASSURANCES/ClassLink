@@ -17,6 +17,10 @@ import 'features/parent/screens/children_screen.dart';
 import 'features/parent/screens/child_detail_screen.dart';
 import 'features/parent/screens/id_card_screen.dart';
 import 'features/trips/trips_screen.dart';
+import 'features/assignments/assignments_screen.dart';
+import 'features/agenda/agenda_screen.dart';
+import 'features/sanctions/sanctions_screen.dart';
+import 'features/summary/summary_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
@@ -63,6 +67,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/schedule',      builder: (context, state) => const ScheduleScreen()),
       GoRoute(path: '/announcements', builder: (context, state) => const AnnouncementsScreen()),
       GoRoute(path: '/bulletins',     builder: (context, state) => const BulletinsScreen()),
+      GoRoute(path: '/assignments',   builder: (context, state) => const AssignmentsScreen()),
       GoRoute(
         path: '/bulletins/:termId',
         builder: (context, state) => BulletinPdfScreen(
@@ -118,6 +123,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/parent/child/:studentId/id-card',
         builder: (context, state) => IdCardScreen(
+          studentId: state.pathParameters['studentId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/parent/child/:studentId/assignments',
+        builder: (context, state) => AssignmentsScreen(
+          studentId: state.pathParameters['studentId'],
+        ),
+      ),
+      GoRoute(
+        path: '/parent/child/:studentId/agenda',
+        builder: (context, state) => AgendaScreen(
+          studentId: state.pathParameters['studentId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/parent/child/:studentId/sanctions',
+        builder: (context, state) => SanctionsScreen(
+          studentId: state.pathParameters['studentId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/parent/child/:studentId/summary',
+        builder: (context, state) => SummaryScreen(
           studentId: state.pathParameters['studentId']!,
         ),
       ),

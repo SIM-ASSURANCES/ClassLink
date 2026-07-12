@@ -80,6 +80,7 @@ class DashboardScreen extends ConsumerWidget {
               children: [
                 _QuickAction(icon: Icons.grade_rounded,          label: 'Notes',          color: AppTheme.primary,              onTap: () => context.push('/grades')),
                 _QuickAction(icon: Icons.description_rounded,    label: 'Bulletins',      color: const Color(0xFF7C3AED),       onTap: () => context.push('/bulletins')),
+                _QuickAction(icon: Icons.assignment_rounded,     label: 'Devoirs',        color: const Color(0xFF0D9488),       onTap: () => context.push('/assignments')),
                 _QuickAction(icon: Icons.calendar_today_rounded, label: 'Emploi du temps',color: AppTheme.secondary,            onTap: () => context.push('/schedule')),
                 _QuickAction(icon: Icons.campaign_rounded,       label: 'Annonces',       color: AppTheme.success,              onTap: () => context.push('/announcements')),
               ],

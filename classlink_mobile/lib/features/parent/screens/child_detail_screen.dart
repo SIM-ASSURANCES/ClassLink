@@ -21,6 +21,10 @@ class ChildDetailScreen extends ConsumerWidget {
           const SizedBox(height: 12),
 
           _ActionTile(
+            icon: Icons.dashboard_rounded, label: 'Aperçu', color: const Color(0xFF16A34A),
+            onTap: () => context.push('/parent/child/$studentId/summary'),
+          ),
+          _ActionTile(
             icon: Icons.grade_rounded, label: 'Notes', color: AppTheme.primary,
             onTap: () => context.push('/parent/child/$studentId/grades'),
           ),
@@ -29,12 +33,24 @@ class ChildDetailScreen extends ConsumerWidget {
             onTap: () => context.push('/parent/child/$studentId/bulletins'),
           ),
           _ActionTile(
+            icon: Icons.assignment_rounded, label: 'Devoirs & exercices', color: const Color(0xFF0D9488),
+            onTap: () => context.push('/parent/child/$studentId/assignments'),
+          ),
+          _ActionTile(
             icon: Icons.calendar_today_rounded, label: 'Emploi du temps', color: AppTheme.secondary,
             onTap: () => context.push('/parent/child/$studentId/schedule'),
           ),
           _ActionTile(
+            icon: Icons.event_note_rounded, label: 'Agenda scolaire', color: const Color(0xFF4F46E5),
+            onTap: () => context.push('/parent/child/$studentId/agenda'),
+          ),
+          _ActionTile(
             icon: Icons.check_circle_outline, label: 'Absences', color: AppTheme.warning,
             onTap: () => context.push('/parent/child/$studentId/attendance'),
+          ),
+          _ActionTile(
+            icon: Icons.gavel_rounded, label: 'Sanctions', color: AppTheme.danger,
+            onTap: () => context.push('/parent/child/$studentId/sanctions'),
           ),
           _ActionTile(
             icon: Icons.receipt_long_rounded, label: 'Paiements', color: const Color(0xFF0891B2),

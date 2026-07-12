@@ -15,6 +15,10 @@ class ApiConstants {
   static const String parentSubscription = '/api/mobile/parent/subscription';
   static const String payments     = '/api/mobile/payments';
   static const String bulletins    = '/api/mobile/bulletins';
+  static const String assignments  = '/api/mobile/assignments';
+  static const String agenda       = '/api/mobile/agenda';
+  static const String sanctions    = '/api/mobile/sanctions';
+  static const String summary      = '/api/mobile/summary';
   static const String fcmRegister  = '/api/mobile/fcm/register';
   static const String trips           = '/api/mobile/parent/trips';
   static const String tripsAuthorize  = '/api/mobile/parent/trips/authorize';
