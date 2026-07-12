@@ -148,6 +148,22 @@ model PromoCode {
   @@map("promo_codes")
 }
 
+// ─── Interrupteurs de fonctionnalités parent (verrou admin plateforme) ────────
+// Permet au Super Admin de forcer le déverrouillage ou le verrouillage d'une
+// fonctionnalité de l'espace parent pour TOUTE la plateforme, indépendamment
+// du paiement de l'abonnement MyClassLink (ex. désactiver une fonctionnalité
+// buguée, ou offrir un accès promotionnel temporaire). `override = null`
+// signifie "comportement automatique" (suit le statut de paiement).
+model ParentFeatureFlag {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  override  String?  // null | "LOCK" | "UNLOCK"
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("parent_feature_flags")
+}
+
 // ─── Audit log global ────────────────────────────────────────────────────────
 model GlobalAuditLog {
   id         String   @id @default(cuid())

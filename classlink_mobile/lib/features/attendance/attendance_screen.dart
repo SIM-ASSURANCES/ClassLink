@@ -44,6 +44,7 @@ class AttendanceScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Absences & retards')),
       body: ParentPaywallGate(
         featureName: 'La justification des absences',
+        featureKey: 'attendance',
         child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),

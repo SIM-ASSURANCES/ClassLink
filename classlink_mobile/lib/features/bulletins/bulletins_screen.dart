@@ -37,6 +37,7 @@ class BulletinsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Bulletins de notes')),
       body: ParentPaywallGate(
         featureName: 'Les bulletins scolaires',
+        featureKey: 'bulletins',
         child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),

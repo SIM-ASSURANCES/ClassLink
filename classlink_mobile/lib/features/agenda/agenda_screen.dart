@@ -39,6 +39,7 @@ class AgendaScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Agenda scolaire')),
       body: ParentPaywallGate(
         featureName: 'L\'agenda scolaire',
+        featureKey: 'agenda',
         child: async.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),

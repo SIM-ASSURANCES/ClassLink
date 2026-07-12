@@ -29,6 +29,7 @@ class CafeteriaScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Cantine')),
       body: ParentPaywallGate(
         featureName: 'La cantine',
+        featureKey: 'cafeteria',
         child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),

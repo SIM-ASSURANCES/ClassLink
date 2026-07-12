@@ -26,7 +26,7 @@ export default async function ParentComposeMessagePage({ searchParams }: Props) 
           <h1 className="text-2xl font-bold text-gray-900">Nouveau message</h1>
         </div>
 
-        <ParentPaywall featureName="La messagerie">
+        <ParentPaywall featureName="La messagerie" featureKey="messages">
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <ComposeForm
             contacts={contacts}

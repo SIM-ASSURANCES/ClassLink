@@ -52,7 +52,7 @@ export default async function SanctionsPage({ params }: Props) {
 
       <ChildTabs studentId={studentId} />
 
-      <ParentPaywall featureName="L'historique des sanctions">
+      <ParentPaywall featureName="L'historique des sanctions" featureKey="sanctions">
       {sanctions.length === 0 ? (
         <div className="bg-white rounded-xl border border-dashed border-gray-300 py-16 text-center">
           <div className="text-4xl mb-3">✅</div>

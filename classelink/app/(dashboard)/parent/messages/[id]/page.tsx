@@ -24,7 +24,7 @@ export default async function ParentMessageDetailPage({ params }: Props) {
         </Link>
       </div>
 
-      <ParentPaywall featureName="La messagerie">
+      <ParentPaywall featureName="La messagerie" featureKey="messages">
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-6 py-5 border-b border-gray-100">
           <h1 className="text-lg font-semibold text-gray-900">{msg.subject}</h1>

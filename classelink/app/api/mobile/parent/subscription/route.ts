@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { withMobileAuth } from '@/lib/auth/mobile-guard'
 import { PARENT_FEE_PER_CHILD } from '@/lib/parent-fee'
+import { getFeatureOverrides } from '@/lib/parent-feature-flags.server'
 
 // Statut de l'abonnement MyClassLink du parent (compte plateforme, distinct
 // des frais de scolarité de l'école) — même logique que
@@ -22,8 +23,10 @@ export const GET = withMobileAuth(['PARENT'], async (_req, { user, tenantDb }) =
   const academicYearId   = countRows[0]?.academic_year_id ?? null
   const academicYearName = countRows[0]?.academic_year_name ?? null
 
+  const featureOverrides = await getFeatureOverrides()
+
   if (count === 0 || !academicYearId) {
-    return NextResponse.json({ paid: true, childrenCount: 0, amountDue: 0, academicYearName })
+    return NextResponse.json({ paid: true, childrenCount: 0, amountDue: 0, academicYearName, featureOverrides })
   }
 
   const parentRows: any[] = await tenantDb.$queryRaw`
@@ -46,5 +49,6 @@ export const GET = withMobileAuth(['PARENT'], async (_req, { user, tenantDb }) =
     childrenCount: count,
     amountDue: count * PARENT_FEE_PER_CHILD,
     academicYearName,
+    featureOverrides,
   })
 })

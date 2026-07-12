@@ -5,14 +5,20 @@ import '../../../core/theme/app_theme.dart';
 import '../screens/children_screen.dart';
 
 /// Verrouille une fonctionnalité parent tant que l'abonnement MyClassLink
-/// (2000 FCFA/an/enfant) n'est pas réglé pour l'année scolaire en cours —
-/// équivalent mobile de components/ui/parent-paywall.tsx (web).
-/// Transparent pour l'élève : le paiement d'abonnement ne concerne que le
-/// compte parent.
+/// (2000 FCFA/an/enfant) n'est pas réglé pour l'année scolaire en cours, sauf
+/// override explicite du Super Admin (verrou/déverrouillage forcé côté
+/// /super-admin/parents, qui prime toujours) — équivalent mobile de
+/// components/ui/parent-paywall.tsx (web). Transparent pour l'élève.
 class ParentPaywallGate extends ConsumerWidget {
   final String featureName;
+  final String featureKey;
   final Widget child;
-  const ParentPaywallGate({super.key, required this.featureName, required this.child});
+  const ParentPaywallGate({
+    super.key,
+    required this.featureName,
+    required this.featureKey,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,7 +42,40 @@ class ParentPaywallGate extends ConsumerWidget {
       ),
       data: (sub) {
         final paid = sub['paid'] as bool? ?? true;
-        if (paid) return child;
+        final overrides = sub['featureOverrides'] as Map<String, dynamic>? ?? const {};
+        final override = overrides[featureKey] as String?; // null | 'LOCK' | 'UNLOCK'
+
+        final allowed = switch (override) {
+          'LOCK'   => false,
+          'UNLOCK' => true,
+          _        => paid,
+        };
+        if (allowed) return child;
+
+        // Verrouillé alors que l'abonnement est payé : verrou administrateur
+        // plateforme, pas un problème de paiement — pas de bouton "Régulariser".
+        if (paid) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.lock_outline_rounded, color: AppTheme.textSub, size: 28),
+                  SizedBox(height: 12),
+                  Text('Fonctionnalité temporairement indisponible',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppTheme.textMain)),
+                  SizedBox(height: 6),
+                  Text(
+                    'Cette fonctionnalité est actuellement désactivée par l\'administrateur de la plateforme.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: AppTheme.textSub),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
 
         final childrenCount = sub['childrenCount'] as int? ?? 0;
         final amountDue     = (sub['amountDue'] as num?)?.toInt() ?? 0;

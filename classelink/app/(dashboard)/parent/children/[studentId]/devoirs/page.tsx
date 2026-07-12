@@ -59,7 +59,7 @@ export default async function ChildDevoirsPage({ params }: Props) {
 
       <ChildTabs studentId={studentId} />
 
-      <ParentPaywall featureName="Les devoirs & exercices">
+      <ParentPaywall featureName="Les devoirs & exercices" featureKey="assignments">
       {/* Stats rapides */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-center">

@@ -86,7 +86,7 @@ export default async function AgendaPage({ params, searchParams }: Props) {
 
       <ChildTabs studentId={studentId} />
 
-      <ParentPaywall featureName="L'agenda scolaire">
+      <ParentPaywall featureName="L'agenda scolaire" featureKey="agenda">
       {/* Month navigation */}
       <div className="flex items-center justify-between">
         <Link

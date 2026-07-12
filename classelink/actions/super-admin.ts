@@ -17,6 +17,8 @@ import type { ActionResult, PaginatedResult } from '@/types'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { Pool } from 'pg'
+import { PARENT_FEATURES, type FeatureOverride } from '@/lib/parent-feature-flags'
+import { getFeatureOverrides } from '@/lib/parent-feature-flags.server'
 
 const db = publicPrisma as any
 
@@ -737,6 +739,116 @@ export async function migrateAllTenants(): Promise<ActionResult<{ migrated: numb
     }
 
     return { success: true, data: { migrated, failed } }
+  } catch (error) {
+    return { success: false, error: toActionError(error) }
+  }
+}
+
+// ─── Interrupteurs de fonctionnalités parent (verrou plateforme) ─────────────
+
+export async function getParentFeatureFlags(): Promise<ActionResult<Record<string, FeatureOverride>>> {
+  await requireRole('SUPER_ADMIN')
+  try {
+    const overrides = await getFeatureOverrides()
+    return { success: true, data: overrides }
+  } catch (error) {
+    return { success: false, error: toActionError(error) }
+  }
+}
+
+/** override: null (auto — suit le paiement) | "LOCK" (forcer verrouillé) | "UNLOCK" (forcer déverrouillé) */
+export async function setParentFeatureOverride(
+  key: string,
+  override: FeatureOverride
+): Promise<ActionResult> {
+  const session = await requireRole('SUPER_ADMIN')
+  try {
+    if (override === null) {
+      await db.parentFeatureFlag.deleteMany({ where: { key } })
+    } else {
+      await db.parentFeatureFlag.upsert({
+        where: { key },
+        update: { override, updatedBy: session.user.email },
+        create: { key, override, updatedBy: session.user.email },
+      })
+    }
+    revalidatePath('/super-admin/parents')
+    return { success: true, data: undefined }
+  } catch (error) {
+    return { success: false, error: toActionError(error) }
+  }
+}
+
+/** Applique le même override à toutes les fonctionnalités d'un coup ("Tout verrouiller" / "Tout déverrouiller" / "Réinitialiser"). */
+export async function bulkSetParentFeatureOverride(override: FeatureOverride): Promise<ActionResult> {
+  const session = await requireRole('SUPER_ADMIN')
+  try {
+    if (override === null) {
+      await db.parentFeatureFlag.deleteMany({})
+    } else {
+      for (const feature of PARENT_FEATURES) {
+        await db.parentFeatureFlag.upsert({
+          where: { key: feature.key },
+          update: { override, updatedBy: session.user.email },
+          create: { key: feature.key, override, updatedBy: session.user.email },
+        })
+      }
+    }
+    revalidatePath('/super-admin/parents')
+    return { success: true, data: undefined }
+  } catch (error) {
+    return { success: false, error: toActionError(error) }
+  }
+}
+
+// ─── Annuaire de tous les parents (toutes écoles confondues) ─────────────────
+
+export async function getAllParents(): Promise<ActionResult<any[]>> {
+  await requireRole('SUPER_ADMIN')
+  try {
+    const schools = await db.school.findMany({
+      select: { id: true, name: true, schemaName: true },
+    })
+
+    const results: any[] = []
+    for (const school of schools) {
+      try {
+        const tenantDb = getTenantPrisma(school.schemaName) as any
+        const rows: any[] = await tenantDb.$queryRaw`
+          SELECT
+            u.id, u.email, u.first_name, u.last_name, u.is_active, u.created_at,
+            COUNT(DISTINCT ps.student_id)::int AS children_count,
+            sub.status AS subscription_status
+          FROM users u
+          JOIN parents p ON p.user_id = u.id
+          LEFT JOIN parent_students ps ON ps.parent_id = p.id
+          LEFT JOIN parent_subscriptions sub
+            ON sub.parent_id = p.id
+            AND sub.academic_year_id = (SELECT id FROM academic_years WHERE is_current = TRUE LIMIT 1)
+          WHERE u.role = 'PARENT'
+          GROUP BY u.id, u.email, u.first_name, u.last_name, u.is_active, u.created_at, sub.status
+          ORDER BY u.last_name, u.first_name
+        `
+        for (const r of rows) {
+          results.push({
+            id:                 r.id,
+            email:              r.email,
+            firstName:          r.first_name,
+            lastName:           r.last_name,
+            isActive:           r.is_active,
+            createdAt:          r.created_at,
+            childrenCount:      r.children_count,
+            subscriptionPaid:   r.subscription_status === 'SUCCESS',
+            schoolId:           school.id,
+            schoolName:         school.name,
+          })
+        }
+      } catch {
+        // École sans schéma tenant accessible — on l'ignore plutôt que de tout faire échouer.
+      }
+    }
+
+    return { success: true, data: results }
   } catch (error) {
     return { success: false, error: toActionError(error) }
   }

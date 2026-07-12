@@ -44,6 +44,7 @@ class AssignmentsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Devoirs & exercices')),
       body: ParentPaywallGate(
         featureName: 'Les devoirs & exercices',
+        featureKey: 'assignments',
         child: async.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),

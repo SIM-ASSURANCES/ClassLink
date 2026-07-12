@@ -73,7 +73,7 @@ export default async function ChildNotesPage({ params }: Props) {
 
       <ChildTabs studentId={studentId} />
 
-      <ParentPaywall featureName="Les notes & moyennes">
+      <ParentPaywall featureName="Les notes & moyennes" featureKey="grades">
       {/* Récapitulatif moyennes par trimestre */}
       <div className="grid grid-cols-3 gap-3">
         {termList.map(t => {

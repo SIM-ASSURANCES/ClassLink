@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/grades_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../parent/widgets/parent_paywall_gate.dart';
 
 class GradesScreen extends ConsumerWidget {
   final String? studentId;
@@ -20,7 +21,10 @@ class GradesScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mes notes')),
-      body: async.when(
+      body: ParentPaywallGate(
+        featureName: 'Les notes & moyennes',
+        featureKey: 'grades',
+        child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => const Center(child: Text('Impossible de charger les notes.', style: TextStyle(color: AppTheme.danger))),
         data: (state) => state.subjects.isEmpty
@@ -80,6 +84,7 @@ class GradesScreen extends ConsumerWidget {
                   },
                 ),
               ),
+      ),
       ),
     );
   }

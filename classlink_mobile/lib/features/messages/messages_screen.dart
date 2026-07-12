@@ -26,6 +26,7 @@ class MessagesScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Messages')),
       body: ParentPaywallGate(
         featureName: 'La messagerie',
+        featureKey: 'messages',
         child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),

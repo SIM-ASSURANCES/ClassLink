@@ -38,7 +38,7 @@ export default async function ParentCafeteriaPage() {
         </p>
       </div>
 
-      <ParentPaywall featureName="La cantine">
+      <ParentPaywall featureName="La cantine" featureKey="cafeteria">
       {children.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-gray-200 rounded-xl bg-white">
           <p className="text-sm text-gray-500">Aucun enfant associé à votre compte.</p>

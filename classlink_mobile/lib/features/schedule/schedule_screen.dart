@@ -67,6 +67,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen>
       ),
       body: ParentPaywallGate(
         featureName: 'L\'emploi du temps',
+        featureKey: 'schedule',
         child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),

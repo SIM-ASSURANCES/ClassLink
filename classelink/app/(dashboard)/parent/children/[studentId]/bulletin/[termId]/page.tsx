@@ -86,7 +86,7 @@ export default async function ParentBulletinDetailPage({ params }: Props) {
         </div>
       </div>
 
-      <ParentPaywall featureName="Le bulletin de notes">
+      <ParentPaywall featureName="Le bulletin de notes" featureKey="bulletins">
       {/* ══════════════════ BULLETIN (zone imprimable) ══════════════════ */}
       <div className="bg-white rounded-xl border border-gray-200 p-8 max-w-3xl mx-auto
                       print:border-0 print:rounded-none print:p-0 print:max-w-none print:mx-0">

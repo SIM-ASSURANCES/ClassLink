@@ -30,7 +30,7 @@ export default async function ParentMessagesPage({ searchParams }: Props) {
         </Link>
       </div>
 
-      <ParentPaywall featureName="La messagerie">
+      <ParentPaywall featureName="La messagerie" featureKey="messages">
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="flex border-b border-gray-200">
           <Link

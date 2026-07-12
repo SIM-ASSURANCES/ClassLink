@@ -14,7 +14,7 @@ export default async function ParentAbsencesPage() {
         description="Soumettez des justificatifs pour les absences non justifiées de vos enfants"
       />
 
-      <ParentPaywall featureName="La justification des absences">
+      <ParentPaywall featureName="La justification des absences" featureKey="attendance">
       {children.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
           <p className="text-sm text-gray-400 italic">Aucun enfant associé à votre compte.</p>

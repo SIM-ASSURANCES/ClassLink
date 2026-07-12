@@ -9,6 +9,8 @@ import { initiateSchoolPayment, isSchoolPaymentConfigured } from '@/lib/payments
 import { initiatePayment as initiateGlobalPayment } from '@/lib/payments/geniuspay'
 import { generateStudentQrCode } from '@/lib/qrcode'
 import { PARENT_FEE_PER_CHILD } from '@/lib/parent-fee'
+import { resolveFeatureAccess, type ParentFeatureKey } from '@/lib/parent-feature-flags'
+import { getFeatureOverrides } from '@/lib/parent-feature-flags.server'
 
 async function getParentDb() {
   const session = await requireRole('PARENT')
@@ -661,6 +663,40 @@ export async function getParentSubscriptionStatus(): Promise<ActionResult<Parent
     return {
       success: true,
       data: { paid, childrenCount: count, amountDue: count * PARENT_FEE_PER_CHILD, academicYearName },
+    }
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? 'Erreur' }
+  }
+}
+
+/**
+ * Accès à une fonctionnalité de l'espace parent, combinant le paiement de
+ * l'abonnement et un éventuel override Super Admin (qui prime toujours) —
+ * utilisé par <ParentPaywall featureKey="...">.
+ */
+export async function checkFeatureAccess(
+  featureKey: ParentFeatureKey
+): Promise<ActionResult<{ allowed: boolean; paid: boolean; childrenCount: number; amountDue: number }>> {
+  try {
+    const [status, overrides] = await Promise.all([
+      getParentSubscriptionStatus(),
+      getFeatureOverrides(),
+    ])
+    if (!status.success) {
+      return { success: false, error: status.error }
+    }
+    if (!status.data) {
+      return { success: false, error: 'Erreur' }
+    }
+    const allowed = resolveFeatureAccess(status.data.paid, overrides[featureKey] ?? null)
+    return {
+      success: true,
+      data: {
+        allowed,
+        paid: status.data.paid,
+        childrenCount: status.data.childrenCount,
+        amountDue: status.data.amountDue,
+      },
     }
   } catch (e: any) {
     return { success: false, error: e?.message ?? 'Erreur' }

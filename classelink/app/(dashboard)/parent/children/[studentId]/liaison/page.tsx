@@ -48,7 +48,7 @@ export default async function LiaisonPage({ params }: Props) {
 
       <ChildTabs studentId={studentId} />
 
-      <ParentPaywall featureName="Le carnet de liaison">
+      <ParentPaywall featureName="Le carnet de liaison" featureKey="liaison">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Carte d'élève numérique (QR) */}
         {idCard && (

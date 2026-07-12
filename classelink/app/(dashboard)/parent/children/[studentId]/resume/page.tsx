@@ -61,7 +61,7 @@ export default async function ResumePage({ params }: Props) {
 
       <ChildTabs studentId={studentId} />
 
-      <ParentPaywall featureName="Le résumé hebdomadaire">
+      <ParentPaywall featureName="Le résumé hebdomadaire" featureKey="summary">
       {!summary ? (
         <div className="bg-red-50 rounded-xl border border-red-200 p-4 text-sm text-red-700">
           Impossible de charger le résumé.

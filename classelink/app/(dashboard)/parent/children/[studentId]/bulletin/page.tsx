@@ -53,7 +53,7 @@ export default async function ParentBulletinListPage({ params }: Props) {
       <ChildTabs studentId={studentId} />
 
       {/* Contenu */}
-      <ParentPaywall featureName="Les bulletins scolaires">
+      <ParentPaywall featureName="Les bulletins scolaires" featureKey="bulletins">
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h1 className="text-lg font-bold text-gray-900 mb-1">Bulletins scolaires</h1>
         <p className="text-sm text-gray-500 mb-6">Consultez le bulletin de {profile.first_name} par trimestre.</p>
