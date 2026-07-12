@@ -1,6 +1,7 @@
 import { getMonitoringData } from '@/actions/super-admin'
 import { PageHeader } from '@/components/ui/page-header'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { MigrateTenantsButton } from './migrate-tenants-button'
 
 /* ─── Helpers ─────────────────────────────────────────────────── */
 const ACTION_LABELS: Record<string, { label: string; cls: string }> = {
@@ -85,9 +86,12 @@ export default async function MonitoringPage() {
 
       {/* ── Santé du système ─────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" />
-          <h3 className="text-sm font-semibold text-gray-900">Santé du système</h3>
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" />
+            <h3 className="text-sm font-semibold text-gray-900">Santé du système</h3>
+          </div>
+          <MigrateTenantsButton />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100">
           {healthChecks.map(h => (
