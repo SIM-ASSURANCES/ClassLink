@@ -8,7 +8,8 @@ export const GET = withMobileAuth(['PARENT'], async (_req, { user, tenantDb }) =
       s.student_id  AS student_number,
       u.first_name, u.last_name, u.avatar_url,
       c.name        AS class_name,
-      ay.name       AS academic_year
+      ay.name       AS academic_year,
+      ps.relation
     FROM parent_students ps
     JOIN parents p ON p.id = ps.parent_id
     JOIN students s ON s.id = ps.student_id
@@ -29,6 +30,7 @@ export const GET = withMobileAuth(['PARENT'], async (_req, { user, tenantDb }) =
       avatarUrl:     c.avatar_url,
       className:     c.class_name,
       academicYear:  c.academic_year,
+      relation:      c.relation,
     })),
   })
 })
