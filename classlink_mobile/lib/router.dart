@@ -80,7 +80,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/parent/child/:studentId/grades',
-        builder: (context, state) => const GradesScreen(),
+        builder: (context, state) => GradesScreen(
+          studentId: state.pathParameters['studentId'],
+        ),
       ),
       GoRoute(
         path: '/parent/child/:studentId/schedule',

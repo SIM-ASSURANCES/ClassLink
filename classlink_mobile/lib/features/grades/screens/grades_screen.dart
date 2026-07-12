@@ -4,7 +4,8 @@ import '../providers/grades_provider.dart';
 import '../../../core/theme/app_theme.dart';
 
 class GradesScreen extends ConsumerWidget {
-  const GradesScreen({super.key});
+  final String? studentId;
+  const GradesScreen({super.key, this.studentId});
 
   Color _avgColor(double? avg) {
     if (avg == null) return AppTheme.textSub;
@@ -15,18 +16,17 @@ class GradesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(gradesProvider);
+    final async = ref.watch(gradesProvider(studentId));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mes notes')),
-      body: state.isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : state.error != null
-          ? Center(child: Text(state.error!, style: const TextStyle(color: AppTheme.danger)))
-          : state.subjects.isEmpty
+      body: async.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error:   (e, _) => const Center(child: Text('Impossible de charger les notes.', style: TextStyle(color: AppTheme.danger))),
+        data: (state) => state.subjects.isEmpty
             ? const Center(child: Text('Aucune note disponible.'))
             : RefreshIndicator(
-                onRefresh: () => ref.read(gradesProvider.notifier).load(),
+                onRefresh: () => ref.refresh(gradesProvider(studentId).future),
                 child: ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: state.subjects.length,
@@ -45,7 +45,7 @@ class GradesScreen extends ConsumerWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: _avgColor(sub.average).withOpacity(0.12),
+                                color: _avgColor(sub.average).withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -80,6 +80,7 @@ class GradesScreen extends ConsumerWidget {
                   },
                 ),
               ),
+      ),
     );
   }
 }

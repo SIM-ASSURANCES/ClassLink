@@ -35,29 +35,19 @@ class SubjectGrades {
 class GradesState {
   final List<SubjectGrades> subjects;
   final List<dynamic>       terms;
-  final bool                isLoading;
-  final String?             error;
-  const GradesState({this.subjects = const [], this.terms = const [], this.isLoading = false, this.error});
+  const GradesState({this.subjects = const [], this.terms = const []});
 }
 
-class GradesNotifier extends StateNotifier<GradesState> {
-  GradesNotifier() : super(const GradesState()) { load(); }
-
-  Future<void> load({String? termId}) async {
-    state = GradesState(isLoading: true, terms: state.terms, subjects: state.subjects);
-    try {
-      final resp = await ApiClient().get(ApiConstants.grades, params: termId != null ? {'termId': termId} : null);
-      final data = resp.data as Map<String, dynamic>;
-      state = GradesState(
-        subjects: (data['subjects'] as List).map((s) => SubjectGrades.fromJson(s)).toList(),
-        terms:    data['terms'] as List,
-      );
-    } catch (e) {
-      state = GradesState(error: 'Impossible de charger les notes.', subjects: state.subjects, terms: state.terms);
-    }
-  }
-}
-
-final gradesProvider = StateNotifierProvider<GradesNotifier, GradesState>(
-  (ref) => GradesNotifier(),
+/// Paramétré par studentId (null = notes de l'utilisateur connecté ; non-null
+/// = notes d'un enfant, vue parent — voir /api/mobile/grades côté backend).
+final gradesProvider = FutureProvider.family<GradesState, String?>(
+  (ref, studentId) async {
+    final params = studentId != null ? {'studentId': studentId} : null;
+    final resp = await ApiClient().get(ApiConstants.grades, params: params);
+    final data = resp.data as Map<String, dynamic>;
+    return GradesState(
+      subjects: (data['subjects'] as List).map((s) => SubjectGrades.fromJson(s)).toList(),
+      terms:    data['terms'] as List,
+    );
+  },
 );

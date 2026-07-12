@@ -12,12 +12,13 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth   = ref.watch(authProvider);
-    final grades = ref.watch(gradesProvider);
+    final grades = ref.watch(gradesProvider(null));
     final user   = auth.user!;
 
     double? globalAvg;
-    if (grades.subjects.isNotEmpty) {
-      final withAvg = grades.subjects.where((s) => s.average != null).toList();
+    final subjects = grades.value?.subjects ?? const [];
+    if (subjects.isNotEmpty) {
+      final withAvg = subjects.where((s) => s.average != null).toList();
       if (withAvg.isNotEmpty) {
         globalAvg = withAvg.fold(0.0, (s, sub) => s + sub.average!) / withAvg.length;
       }
@@ -47,7 +48,7 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
       body: user.isParent ? const _ParentDashboardBody() : RefreshIndicator(
-        onRefresh: () => ref.read(gradesProvider.notifier).load(),
+        onRefresh: () => ref.refresh(gradesProvider(null).future),
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [

@@ -1,13 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withMobileAuth } from '@/lib/auth/mobile-guard'
 
-export const GET = withMobileAuth(['STUDENT'], async (req, { user, tenantDb }) => {
+export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, tenantDb }) => {
   const { searchParams } = new URL(req.url)
-  const termId = searchParams.get('termId')
+  const termId    = searchParams.get('termId')
+  const studentId = searchParams.get('studentId')
 
   const termFilter = termId
     ? `AND t.id = '${termId.replace(/'/g, "''")}'`
     : ''
+
+  let studentSqlId = `(SELECT id FROM students WHERE user_id = '${user.userId.replace(/'/g, "''")}' LIMIT 1)`
+
+  if (user.role === 'PARENT' && studentId) {
+    const check: any[] = await tenantDb.$queryRawUnsafe(`
+      SELECT ps.id FROM parent_students ps
+      JOIN parents p ON p.id = ps.parent_id
+      WHERE p.user_id = '${user.userId.replace(/'/g, "''")}' AND ps.student_id = '${studentId.replace(/'/g, "''")}'
+      LIMIT 1
+    `)
+    if (!check[0]) return NextResponse.json({ error: 'Accès non autorisé.' }, { status: 403 })
+    studentSqlId = `'${studentId.replace(/'/g, "''")}'`
+  }
 
   const rows: any[] = await tenantDb.$queryRawUnsafe(`
     SELECT
@@ -24,9 +38,7 @@ export const GET = withMobileAuth(['STUDENT'], async (req, { user, tenantDb }) =
     JOIN subject_assignments sa ON sa.id = g.subject_assignment_id
     JOIN subjects s ON s.id = sa.subject_id
     JOIN terms t ON t.id = g.term_id
-    WHERE g.student_id = (
-      SELECT id FROM students WHERE user_id = '${user.userId.replace(/'/g, "''")}' LIMIT 1
-    )
+    WHERE g.student_id = ${studentSqlId}
     ${termFilter}
     ORDER BY t.term_order, s.name, g.graded_at DESC
   `)
