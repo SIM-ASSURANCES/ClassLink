@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/widgets/app_bottom_nav.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -30,7 +29,6 @@ class PaymentsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Paiements')),
-      bottomNavigationBar: studentId == null ? const AppBottomNav(current: AppTab.payments) : null,
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),

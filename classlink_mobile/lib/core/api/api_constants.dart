@@ -12,6 +12,7 @@ class ApiConstants {
   static const String cafeteria    = '/api/mobile/cafeteria';
   static const String messages     = '/api/mobile/messages';
   static const String children     = '/api/mobile/parent/children';
+  static const String parentSubscription = '/api/mobile/parent/subscription';
   static const String payments     = '/api/mobile/payments';
   static const String bulletins    = '/api/mobile/bulletins';
   static const String fcmRegister  = '/api/mobile/fcm/register';

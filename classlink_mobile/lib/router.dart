@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'core/widgets/app_shell.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
@@ -30,15 +31,37 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/login',         builder: (context, state) => const LoginScreen()),
-      GoRoute(path: '/',              builder: (context, state) => const DashboardScreen()),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+
+      // Barre de navigation basse fixe et permanente (Accueil, Frais,
+      // Cantine, Absences, Messages) : un seul Scaffold partagé par ces 5
+      // écrans (voir core/widgets/app_shell.dart) — elle ne dépend plus de
+      // chaque écran pour l'afficher, donc ne peut plus être oubliée nulle
+      // part. Chaque branche garde son propre historique de navigation.
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) => AppShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/', builder: (context, state) => const DashboardScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/payments', builder: (context, state) => const PaymentsScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/cafeteria', builder: (context, state) => const CafeteriaScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/attendance', builder: (context, state) => const AttendanceScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/messages', builder: (context, state) => const MessagesScreen()),
+          ]),
+        ],
+      ),
+
       GoRoute(path: '/grades',        builder: (context, state) => const GradesScreen()),
       GoRoute(path: '/schedule',      builder: (context, state) => const ScheduleScreen()),
-      GoRoute(path: '/attendance',    builder: (context, state) => const AttendanceScreen()),
       GoRoute(path: '/announcements', builder: (context, state) => const AnnouncementsScreen()),
-      GoRoute(path: '/cafeteria',     builder: (context, state) => const CafeteriaScreen()),
-      GoRoute(path: '/messages',      builder: (context, state) => const MessagesScreen()),
-      GoRoute(path: '/payments',      builder: (context, state) => const PaymentsScreen()),
       GoRoute(path: '/bulletins',     builder: (context, state) => const BulletinsScreen()),
       GoRoute(
         path: '/bulletins/:termId',

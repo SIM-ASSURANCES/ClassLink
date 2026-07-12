@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/widgets/app_bottom_nav.dart';
 import 'trips_provider.dart';
 import 'signature_screen.dart';
 
@@ -82,7 +81,6 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Sorties scolaires')),
-      bottomNavigationBar: const AppBottomNav(current: AppTab.trips),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),

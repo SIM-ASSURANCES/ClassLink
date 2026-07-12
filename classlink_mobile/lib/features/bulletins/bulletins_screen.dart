@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../parent/widgets/parent_paywall_gate.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -34,7 +35,9 @@ class BulletinsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Bulletins de notes')),
-      body: async.when(
+      body: ParentPaywallGate(
+        featureName: 'Les bulletins scolaires',
+        child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),
         data: (data) {
@@ -103,6 +106,7 @@ class BulletinsScreen extends ConsumerWidget {
             },
           );
         },
+      ),
       ),
     );
   }

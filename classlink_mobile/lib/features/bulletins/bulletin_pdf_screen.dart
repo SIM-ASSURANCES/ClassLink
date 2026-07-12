@@ -6,6 +6,7 @@ import 'package:printing/printing.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../parent/widgets/parent_paywall_gate.dart';
 
 // Couleurs de marque MyClassLink pour le PDF (#1800AD)
 const _brandBlue      = PdfColor.fromInt(0xFF1800AD);
@@ -149,7 +150,9 @@ class BulletinPdfScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Bulletin PDF')),
-      body: async.when(
+      body: ParentPaywallGate(
+        featureName: 'Le bulletin de notes',
+        child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),
         data: (data) => PdfPreview(
@@ -161,6 +164,7 @@ class BulletinPdfScreen extends ConsumerWidget {
             return doc.save();
           },
         ),
+      ),
       ),
     );
   }

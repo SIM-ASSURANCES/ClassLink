@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../auth/providers/auth_provider.dart';
 import '../grades/providers/grades_provider.dart';
+import '../parent/screens/children_screen.dart';
 import '../../core/theme/app_theme.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -33,52 +34,34 @@ class DashboardScreen extends ConsumerWidget {
           ],
         ),
         actions: [
+          if (user.isParent)
+            IconButton(
+              icon: const Icon(Icons.hiking_rounded),
+              tooltip: 'Sorties',
+              onPressed: () => context.push('/trips'),
+            ),
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             onPressed: () async => ref.read(authProvider.notifier).logout(),
           ),
         ],
       ),
-      body: RefreshIndicator(
+      body: user.isParent ? const _ParentDashboardBody() : RefreshIndicator(
         onRefresh: () => ref.read(gradesProvider.notifier).load(),
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Badge rôle
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: user.isParent
-                    ? AppTheme.secondary.withValues(alpha: 0.1)
-                    : AppTheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  user.isParent ? 'Parent' : 'Élève',
-                  style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w600,
-                    color: user.isParent ? AppTheme.secondary : AppTheme.primary,
-                  ),
-                ),
-              ),
+            // Carte moyenne générale
+            _StatCard(
+              label: 'Moyenne générale',
+              value: globalAvg != null ? '${globalAvg.toStringAsFixed(2)}/20' : '—',
+              icon:  Icons.bar_chart_rounded,
+              color: globalAvg != null
+                ? (globalAvg >= 14 ? AppTheme.success : globalAvg >= 10 ? AppTheme.primary : AppTheme.danger)
+                : AppTheme.textSub,
+              onTap: () => context.push('/grades'),
             ),
             const SizedBox(height: 20),
-
-            // Carte moyenne générale (élève uniquement)
-            if (!user.isParent) ...[
-              _StatCard(
-                label: 'Moyenne générale',
-                value: globalAvg != null ? '${globalAvg.toStringAsFixed(2)}/20' : '—',
-                icon:  Icons.bar_chart_rounded,
-                color: globalAvg != null
-                  ? (globalAvg >= 14 ? AppTheme.success : globalAvg >= 10 ? AppTheme.primary : AppTheme.danger)
-                  : AppTheme.textSub,
-                onTap: () => context.push('/grades'),
-              ),
-              const SizedBox(height: 12),
-            ],
 
             const Padding(
               padding: EdgeInsets.only(bottom: 12),
@@ -94,21 +77,54 @@ class DashboardScreen extends ConsumerWidget {
               physics: const NeverScrollableScrollPhysics(),
               childAspectRatio: 1.3,
               children: [
-                if (!user.isParent) ...[
-                  _QuickAction(icon: Icons.grade_rounded,          label: 'Notes',          color: AppTheme.primary,              onTap: () => context.push('/grades')),
-                  _QuickAction(icon: Icons.description_rounded,    label: 'Bulletins',      color: const Color(0xFF7C3AED),       onTap: () => context.push('/bulletins')),
-                ],
-                _QuickAction(icon: Icons.calendar_today_rounded,   label: 'Emploi du temps',color: AppTheme.secondary,            onTap: () => context.push('/schedule')),
-                _QuickAction(icon: Icons.check_circle_outline,     label: 'Absences',       color: AppTheme.warning,              onTap: () => context.push('/attendance')),
-                _QuickAction(icon: Icons.campaign_rounded,         label: 'Annonces',       color: AppTheme.success,              onTap: () => context.push('/announcements')),
-                _QuickAction(icon: Icons.restaurant_rounded,       label: 'Cantine',        color: const Color(0xFFEA580C),       onTap: () => context.push('/cafeteria')),
-                _QuickAction(icon: Icons.receipt_long_rounded,     label: 'Paiements',      color: const Color(0xFF0891B2),       onTap: () => context.push('/payments')),
-                if (user.isParent)
-                  _QuickAction(icon: Icons.people_rounded,         label: 'Mes enfants',    color: AppTheme.secondary,            onTap: () => context.push('/parent/children')),
-                if (user.isParent)
-                  _QuickAction(icon: Icons.hiking_rounded,         label: 'Sorties',        color: const Color(0xFFEA580C),       onTap: () => context.push('/trips')),
+                _QuickAction(icon: Icons.grade_rounded,          label: 'Notes',          color: AppTheme.primary,              onTap: () => context.push('/grades')),
+                _QuickAction(icon: Icons.description_rounded,    label: 'Bulletins',      color: const Color(0xFF7C3AED),       onTap: () => context.push('/bulletins')),
+                _QuickAction(icon: Icons.calendar_today_rounded, label: 'Emploi du temps',color: AppTheme.secondary,            onTap: () => context.push('/schedule')),
+                _QuickAction(icon: Icons.campaign_rounded,       label: 'Annonces',       color: AppTheme.success,              onTap: () => context.push('/announcements')),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Tableau de bord parent : bannière abonnement + cartes enfants, aligné
+// sur /parent (web) ────────────────────────────────────────────────────────
+class _ParentDashboardBody extends ConsumerWidget {
+  const _ParentDashboardBody();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(childrenProvider);
+
+    return RefreshIndicator(
+      onRefresh: () => ref.refresh(childrenProvider.future),
+      child: async.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),
+        data: (children) => ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              children.isEmpty
+                ? 'Aucun enfant associé à votre compte.'
+                : 'Vous suivez ${children.length} élève${children.length > 1 ? 's' : ''}.',
+              style: const TextStyle(fontSize: 13, color: AppTheme.textSub),
+            ),
+            const SizedBox(height: 16),
+            const SubscriptionBanner(),
+            if (children.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 40),
+                child: Center(
+                  child: Text('Contactez l\'administration pour associer vos enfants à votre compte.',
+                    style: TextStyle(color: AppTheme.textSub), textAlign: TextAlign.center),
+                ),
+              )
+            else
+              for (final c in children.cast<Map<String, dynamic>>()) ChildCard(child: c),
           ],
         ),
       ),

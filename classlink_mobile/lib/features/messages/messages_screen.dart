@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/widgets/app_bottom_nav.dart';
+import '../parent/widgets/parent_paywall_gate.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -24,8 +24,9 @@ class MessagesScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Messages')),
-      bottomNavigationBar: const AppBottomNav(current: AppTab.messages),
-      body: async.when(
+      body: ParentPaywallGate(
+        featureName: 'La messagerie',
+        child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),
         data: (data) {
@@ -98,6 +99,7 @@ class MessagesScreen extends ConsumerWidget {
             ),
           );
         },
+      ),
       ),
     );
   }

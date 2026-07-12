@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/widgets/app_bottom_nav.dart';
+import '../parent/widgets/parent_paywall_gate.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -27,8 +27,9 @@ class CafeteriaScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Cantine')),
-      bottomNavigationBar: const AppBottomNav(current: AppTab.cafeteria),
-      body: async.when(
+      body: ParentPaywallGate(
+        featureName: 'La cantine',
+        child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),
         data: (data) {
@@ -129,6 +130,7 @@ class CafeteriaScreen extends ConsumerWidget {
             ),
           );
         },
+      ),
       ),
     );
   }

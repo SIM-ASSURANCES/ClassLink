@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../parent/widgets/parent_paywall_gate.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -64,7 +65,9 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen>
           tabs: List.generate(5, (i) => Tab(text: _dayNames[i + 1].substring(0, 3))),
         ),
       ),
-      body: async.when(
+      body: ParentPaywallGate(
+        featureName: 'L\'emploi du temps',
+        child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),
         data: (schedule) => TabBarView(
@@ -127,6 +130,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen>
             );
           }),
         ),
+      ),
       ),
     );
   }
