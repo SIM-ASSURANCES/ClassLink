@@ -62,13 +62,12 @@ export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, ten
     const [gradeRows, termRows]: [any[], any[]] = await Promise.all([
       tenantDb.$queryRawUnsafe(`
         SELECT
-          g.value, g.coefficient, g.comment, g.graded_at,
-          s.name AS subject_name, s.color AS subject_color
+          g.value, g.coefficient, g.comment, g.created_at AS graded_at,
+          s.name AS subject_name, NULL::text AS subject_color
         FROM grades g
-        JOIN subject_assignments sa ON sa.id = g.subject_assignment_id
-        JOIN subjects s ON s.id = sa.subject_id
+        JOIN subjects s ON s.id = g.subject_id
         WHERE g.student_id = '${targetStudentId.replace(/'/g, "''")}' AND g.term_id = '${safeTermId}'
-        ORDER BY s.name, g.graded_at
+        ORDER BY s.name, g.created_at
       `),
       tenantDb.$queryRaw`
         SELECT id, name, term_order, start_date, end_date FROM terms WHERE id = ${termId} LIMIT 1

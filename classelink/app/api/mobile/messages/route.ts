@@ -4,7 +4,7 @@ import { withMobileAuth } from '@/lib/auth/mobile-guard'
 export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (_req, { user, tenantDb }) => {
   const rows: any[] = await tenantDb.$queryRawUnsafe(`
     SELECT
-      m.id, m.content, m.created_at, m.is_read,
+      m.id, m.body AS content, m.created_at, (m.read_at IS NOT NULL) AS is_read,
       m.sender_id,
       u.first_name || ' ' || u.last_name AS sender_name,
       u.role AS sender_role,
@@ -18,7 +18,7 @@ export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (_req, { user, te
 
   const sent: any[] = await tenantDb.$queryRawUnsafe(`
     SELECT
-      m.id, m.content, m.created_at, m.is_read,
+      m.id, m.body AS content, m.created_at, (m.read_at IS NOT NULL) AS is_read,
       m.recipient_id,
       u.first_name || ' ' || u.last_name AS recipient_name
     FROM messages m
@@ -55,11 +55,11 @@ export const POST = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, te
   }
 
   try {
-    const rows: any[] = await tenantDb.$queryRawUnsafe(`
-      INSERT INTO messages (sender_id, recipient_id, content)
-      VALUES ('${user.userId}', '${recipientId}', '${(content as string).replace(/'/g, "''")}')
+    const rows: any[] = await tenantDb.$queryRaw`
+      INSERT INTO messages (sender_id, recipient_id, body)
+      VALUES (${user.userId}, ${recipientId}, ${content as string})
       RETURNING id, created_at
-    `)
+    `
     return NextResponse.json({ id: rows[0].id, createdAt: rows[0].created_at })
   } catch {
     return NextResponse.json({ error: 'Erreur lors de l\'envoi.' }, { status: 500 })

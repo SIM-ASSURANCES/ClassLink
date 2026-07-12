@@ -5,27 +5,27 @@ export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, ten
   const { searchParams } = new URL(req.url)
   const studentId = searchParams.get('studentId')
 
-  let studentSqlId = `(SELECT id FROM students WHERE user_id = '${user.userId}' LIMIT 1)`
+  let studentSqlId = `(SELECT id FROM students WHERE user_id = '${user.userId.replace(/'/g, "''")}' LIMIT 1)`
 
   if (user.role === 'PARENT' && studentId) {
     const check: any[] = await tenantDb.$queryRawUnsafe(`
       SELECT ps.id FROM parent_students ps
       JOIN parents p ON p.id = ps.parent_id
-      WHERE p.user_id = '${user.userId}' AND ps.student_id = '${studentId}'
+      WHERE p.user_id = '${user.userId.replace(/'/g, "''")}' AND ps.student_id = '${studentId.replace(/'/g, "''")}'
       LIMIT 1
     `)
     if (!check[0]) return NextResponse.json({ error: 'Accès non autorisé.' }, { status: 403 })
-    studentSqlId = `'${studentId}'`
+    studentSqlId = `'${studentId.replace(/'/g, "''")}'`
   }
 
   const rows: any[] = await tenantDb.$queryRawUnsafe(`
     SELECT
-      a.id, a.date, a.status, a.justified, a.comment,
+      a.id, a.date, a.status, a.justified, a.justification AS comment,
       s.name AS subject_name
     FROM attendances a
-    LEFT JOIN schedule_slots sl ON sl.id = a.schedule_slot_id
-    LEFT JOIN subject_assignments sa ON sa.id = sl.subject_assignment_id
-    LEFT JOIN subjects s ON s.id = sa.subject_id
+    LEFT JOIN schedules sc ON sc.id = a.schedule_id
+    LEFT JOIN teacher_subject_classes tsc ON tsc.id = sc.teacher_subject_class_id
+    LEFT JOIN subjects s ON s.id = tsc.subject_id
     WHERE a.student_id = ${studentSqlId}
     ORDER BY a.date DESC
     LIMIT 100

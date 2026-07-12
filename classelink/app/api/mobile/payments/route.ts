@@ -21,12 +21,13 @@ export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, ten
       const rows: any[] = await tenantDb.$queryRaw`
         SELECT
           p.id, p.amount, p.due_date, p.status,
-          COALESCE(p.description, 'Frais scolaires') AS description,
+          COALESCE(ft.name, 'Frais scolaires') AS description,
           p.created_at,
           u.first_name || ' ' || u.last_name AS student_name
         FROM payments p
         JOIN students s ON s.id = p.student_id
         JOIN users u    ON u.id = s.user_id
+        LEFT JOIN fee_types ft ON ft.id = p.fee_type_id
         WHERE p.student_id IN (${Prisma.join(ids)})
         ORDER BY p.created_at DESC
         LIMIT 50
@@ -58,9 +59,10 @@ export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, ten
     const rows: any[] = await tenantDb.$queryRaw`
       SELECT
         p.id, p.amount, p.due_date, p.status,
-        COALESCE(p.description, 'Frais scolaires') AS description,
+        COALESCE(ft.name, 'Frais scolaires') AS description,
         p.created_at
       FROM payments p
+      LEFT JOIN fee_types ft ON ft.id = p.fee_type_id
       WHERE p.student_id = ${targetId as string}
       ORDER BY p.created_at DESC
       LIMIT 50

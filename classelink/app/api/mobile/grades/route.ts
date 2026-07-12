@@ -29,18 +29,17 @@ export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, ten
       g.value,
       g.coefficient,
       g.comment,
-      g.graded_at,
+      g.created_at AS graded_at,
       s.name  AS subject_name,
-      s.color AS subject_color,
+      NULL::text AS subject_color,
       t.name  AS term_name,
       t.term_order
     FROM grades g
-    JOIN subject_assignments sa ON sa.id = g.subject_assignment_id
-    JOIN subjects s ON s.id = sa.subject_id
+    JOIN subjects s ON s.id = g.subject_id
     JOIN terms t ON t.id = g.term_id
     WHERE g.student_id = ${studentSqlId}
     ${termFilter}
-    ORDER BY t.term_order, s.name, g.graded_at DESC
+    ORDER BY t.term_order, s.name, g.created_at DESC
   `)
 
   // Calcul moyenne par matière et globale
