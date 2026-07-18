@@ -5,6 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
+import '../../core/providers/refresh_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../parent/widgets/parent_paywall_gate.dart';
 
@@ -16,6 +17,7 @@ const _brandBlueLight = PdfColor.fromInt(0xFFEFEEFF);
 
 final bulletinDetailProvider = FutureProvider.family<Map<String, dynamic>, _BulletinArgs>(
   (ref, args) async {
+    ref.watch(refreshTickProvider);
     final params = <String, String>{'termId': args.termId};
     if (args.studentId != null) params['studentId'] = args.studentId!;
     final resp = await ApiClient().get(ApiConstants.bulletins, params: params);

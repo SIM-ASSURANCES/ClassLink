@@ -5,12 +5,14 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
+import '../../core/providers/refresh_provider.dart';
 import '../../core/theme/app_theme.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 final paymentsProvider = FutureProvider.family<List<dynamic>, String?>(
   (ref, studentId) async {
+    ref.watch(refreshTickProvider);
     final params = studentId != null ? {'studentId': studentId} : null;
     final resp = await ApiClient().get(ApiConstants.payments, params: params);
     return resp.data['payments'] as List<dynamic>;

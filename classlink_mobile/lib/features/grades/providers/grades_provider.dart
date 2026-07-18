@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_constants.dart';
+import '../../../core/providers/refresh_provider.dart';
 
 class GradeEntry {
   final String  id;
@@ -42,6 +43,7 @@ class GradesState {
 /// = notes d'un enfant, vue parent — voir /api/mobile/grades côté backend).
 final gradesProvider = FutureProvider.family<GradesState, String?>(
   (ref, studentId) async {
+    ref.watch(refreshTickProvider);
     final params = studentId != null ? {'studentId': studentId} : null;
     final resp = await ApiClient().get(ApiConstants.grades, params: params);
     final data = resp.data as Map<String, dynamic>;

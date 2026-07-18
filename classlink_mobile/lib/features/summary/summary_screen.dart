@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
+import '../../core/providers/refresh_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../parent/widgets/parent_paywall_gate.dart';
 
@@ -11,6 +12,7 @@ import '../parent/widgets/parent_paywall_gate.dart';
 
 final summaryProvider = FutureProvider.family<Map<String, dynamic>, String>(
   (ref, studentId) async {
+    ref.watch(refreshTickProvider);
     final resp = await ApiClient().get(ApiConstants.summary, params: {'studentId': studentId});
     return resp.data as Map<String, dynamic>;
   },

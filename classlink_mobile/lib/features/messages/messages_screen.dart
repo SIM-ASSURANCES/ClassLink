@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
+import '../../core/providers/refresh_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../parent/widgets/parent_paywall_gate.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 final messagesProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  ref.watch(refreshTickProvider);
   final resp = await ApiClient().get(ApiConstants.messages);
   return resp.data as Map<String, dynamic>;
 });

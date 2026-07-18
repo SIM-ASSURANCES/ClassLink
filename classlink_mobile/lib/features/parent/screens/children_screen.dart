@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_constants.dart';
+import '../../../core/providers/refresh_provider.dart';
 import '../../../core/theme/app_theme.dart';
 
 // Couleurs alignées sur le web (Tailwind purple-100/600/700) — réservées aux
@@ -16,11 +17,13 @@ const kChildAccentLight = Color(0xFFF3E8FF);
 // ─── Providers ────────────────────────────────────────────────────────────────
 
 final childrenProvider = FutureProvider<List<dynamic>>((ref) async {
+  ref.watch(refreshTickProvider);
   final resp = await ApiClient().get(ApiConstants.children);
   return resp.data['children'] as List<dynamic>;
 });
 
 final parentSubscriptionProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  ref.watch(refreshTickProvider);
   final resp = await ApiClient().get(ApiConstants.parentSubscription);
   return resp.data as Map<String, dynamic>;
 });

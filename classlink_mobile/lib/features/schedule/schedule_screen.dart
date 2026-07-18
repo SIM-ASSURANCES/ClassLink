@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
+import '../../core/providers/refresh_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../parent/widgets/parent_paywall_gate.dart';
 
@@ -9,6 +10,7 @@ import '../parent/widgets/parent_paywall_gate.dart';
 
 final scheduleProvider = FutureProvider.family<Map<int, List<dynamic>>, String?>(
   (ref, studentId) async {
+    ref.watch(refreshTickProvider);
     final params = studentId != null ? {'studentId': studentId} : null;
     final resp = await ApiClient().get(ApiConstants.schedule, params: params);
     final raw = resp.data['schedule'] as Map<String, dynamic>;

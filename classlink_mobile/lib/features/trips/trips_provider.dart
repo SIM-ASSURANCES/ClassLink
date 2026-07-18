@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
+import '../../core/providers/refresh_provider.dart';
 
 final tripsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
+  ref.watch(refreshTickProvider);
   final resp = await ApiClient().get(ApiConstants.trips);
   return resp.data['trips'] as List<dynamic>;
 });

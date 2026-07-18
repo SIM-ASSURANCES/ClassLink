@@ -18,7 +18,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { Pool } from 'pg'
 import { PARENT_FEATURES, type FeatureOverride } from '@/lib/parent-feature-flags'
-import { getFeatureOverrides } from '@/lib/parent-feature-flags.server'
+import { getFeatureOverrides, notifyAllParentsFeatureFlagsChanged } from '@/lib/parent-feature-flags.server'
 
 const db = publicPrisma as any
 
@@ -773,6 +773,7 @@ export async function setParentFeatureOverride(
       })
     }
     revalidatePath('/super-admin/parents')
+    await notifyAllParentsFeatureFlagsChanged()
     return { success: true, data: undefined }
   } catch (error) {
     return { success: false, error: toActionError(error) }
@@ -795,6 +796,7 @@ export async function bulkSetParentFeatureOverride(override: FeatureOverride): P
       }
     }
     revalidatePath('/super-admin/parents')
+    await notifyAllParentsFeatureFlagsChanged()
     return { success: true, data: undefined }
   } catch (error) {
     return { success: false, error: toActionError(error) }

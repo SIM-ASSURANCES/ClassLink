@@ -77,3 +77,43 @@ export async function sendPushNotification(payload: PushPayload): Promise<{
     invalidTokens,
   }
 }
+
+/**
+ * Envoie un push silencieux (data-only, sans bannière visible) à une liste de
+ * tokens FCM — utilisé pour déclencher un rafraîchissement instantané côté
+ * app mobile (ex. changement d'un verrou de fonctionnalité parent) sans
+ * notifier l'utilisateur d'un événement.
+ */
+export async function sendDataPush(tokens: string[], data: Record<string, string>): Promise<{
+  successCount: number
+  failureCount: number
+  invalidTokens: string[]
+}> {
+  const firebaseApp = getFirebaseApp()
+  if (!firebaseApp || tokens.length === 0) {
+    return { successCount: 0, failureCount: 0, invalidTokens: [] }
+  }
+
+  const messaging = getMessaging(firebaseApp)
+  const response = await messaging.sendEachForMulticast({
+    tokens,
+    data,
+    android: { priority: 'high' },
+  })
+
+  const invalidTokens: string[] = []
+  response.responses.forEach((r, i) => {
+    if (!r.success) {
+      const code = r.error?.code
+      if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') {
+        invalidTokens.push(tokens[i])
+      }
+    }
+  })
+
+  return {
+    successCount: response.successCount,
+    failureCount: response.failureCount,
+    invalidTokens,
+  }
+}
