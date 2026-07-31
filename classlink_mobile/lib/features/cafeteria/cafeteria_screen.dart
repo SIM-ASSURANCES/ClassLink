@@ -36,8 +36,10 @@ class CafeteriaScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error:   (e, _) => Center(child: Text('Erreur : $e', style: const TextStyle(color: AppTheme.danger))),
         data: (data) {
-          final menus = data['menus'] as List<dynamic>;
-          final sub   = data['subscription'] as Map<String, dynamic>?;
+          final menus    = data['menus'] as List<dynamic>;
+          final sub      = data['subscription'] as Map<String, dynamic>?;
+          // Vue parent : un statut d'abonnement par enfant, comme le web.
+          final children = data['children'] as List<dynamic>?;
 
           // Grouper par jour
           final byDay = <int, List<Map<String, dynamic>>>{};
@@ -56,38 +58,12 @@ class CafeteriaScreen extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // Statut abonnement
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: sub != null ? AppTheme.success.withValues(alpha: 0.1) : AppTheme.textSub.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: sub != null ? AppTheme.success.withValues(alpha: 0.3) : AppTheme.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        sub != null ? Icons.check_circle_rounded : Icons.cancel_outlined,
-                        color: sub != null ? AppTheme.success : AppTheme.textSub,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: sub != null
-                          ? Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Abonnement actif — ${sub['meal_type'] ?? ''}',
-                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.success)),
-                                Text('Depuis le ${sub['start_date']?.toString().substring(0, 10) ?? ''}',
-                                  style: TextStyle(fontSize: 11, color: AppTheme.textSub)),
-                              ],
-                            )
-                          : const Text('Pas d\'abonnement cantine actif.',
-                              style: TextStyle(fontSize: 13, color: AppTheme.textSub)),
-                      ),
-                    ],
-                  ),
-                ),
+                // Statut abonnement — parent : un bandeau par enfant (comme le
+                // web) ; élève : son propre bandeau.
+                if (children != null)
+                  ...children.map((c) => _ChildSubscriptionCard(child: c as Map<String, dynamic>))
+                else
+                  _SubscriptionBanner(sub: sub),
 
                 const SizedBox(height: 20),
 
@@ -134,6 +110,129 @@ class CafeteriaScreen extends ConsumerWidget {
           );
         },
       ),
+      ),
+    );
+  }
+}
+
+/// Bandeau d'abonnement d'un élève connecté (comportement historique).
+class _SubscriptionBanner extends StatelessWidget {
+  final Map<String, dynamic>? sub;
+  const _SubscriptionBanner({required this.sub});
+
+  @override
+  Widget build(BuildContext context) {
+    final active = sub != null;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: active ? AppTheme.success.withValues(alpha: 0.1) : AppTheme.textSub.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: active ? AppTheme.success.withValues(alpha: 0.3) : AppTheme.border),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            active ? Icons.check_circle_rounded : Icons.cancel_outlined,
+            color: active ? AppTheme.success : AppTheme.textSub,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: active
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Abonnement actif — ${_mealLabels[sub!['meal_type']] ?? sub!['meal_type'] ?? ''}',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.success)),
+                    Text('Depuis le ${sub!['start_date']?.toString().substring(0, 10) ?? ''}',
+                      style: TextStyle(fontSize: 11, color: AppTheme.textSub)),
+                  ],
+                )
+              : const Text('Pas d\'abonnement cantine actif.',
+                  style: TextStyle(fontSize: 13, color: AppTheme.textSub)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Carte de statut cantine d'un enfant (vue parent) — reflète la page web :
+/// nom, classe, badge de statut, et détail type/depuis/montant si abonné.
+class _ChildSubscriptionCard extends StatelessWidget {
+  final Map<String, dynamic> child;
+  const _ChildSubscriptionCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final sub       = child['subscription'] as Map<String, dynamic>?;
+    final active    = sub != null && sub['status'] == 'ACTIVE';
+    final firstName = child['firstName'] as String? ?? '';
+    final lastName  = child['lastName'] as String? ?? '';
+    final amount    = sub?['amount'];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: AppTheme.primary.withValues(alpha: 0.12),
+                child: Text(
+                  '${firstName.isNotEmpty ? firstName[0] : ''}${lastName.isNotEmpty ? lastName[0] : ''}'.toUpperCase(),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primary),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('$firstName $lastName',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.textMain)),
+                    if (child['className'] != null)
+                      Text(child['className'] as String,
+                        style: TextStyle(fontSize: 11, color: AppTheme.textSub)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: (active ? AppTheme.success : AppTheme.textSub).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  active ? 'Actif' : 'Non abonné',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                    color: active ? AppTheme.success : AppTheme.textSub),
+                ),
+              ),
+            ],
+          ),
+          if (active) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Type : ${_mealLabels[sub['meal_type']] ?? sub['meal_type'] ?? ''}'
+              ' · Depuis le ${sub['start_date']?.toString().substring(0, 10) ?? ''}'
+              '${amount != null && (amount as num) > 0 ? ' · ${NumberFormat('#,###').format(amount)} F' : ''}',
+              style: TextStyle(fontSize: 11, color: AppTheme.textSub),
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Text('$firstName n\'est pas abonné(e) à la cantine. Contactez l\'administration pour souscrire.',
+              style: TextStyle(fontSize: 11, color: AppTheme.textSub)),
+          ],
+        ],
       ),
     );
   }

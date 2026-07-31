@@ -80,6 +80,11 @@ class AnnouncementsScreen extends ConsumerWidget {
                               child: Text(a['title'] ?? '',
                                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                             ),
+                            // Badge épinglé — comme le web.
+                            if (a['isPinned'] == true) ...[
+                              const Icon(Icons.push_pin_rounded, size: 14, color: AppTheme.warning),
+                              const SizedBox(width: 4),
+                            ],
                             if (date != null)
                               Text(DateFormat('dd/MM').format(date),
                                 style: TextStyle(fontSize: 11, color: AppTheme.textSub)),

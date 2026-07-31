@@ -220,6 +220,15 @@ class _PaymentCardState extends State<_PaymentCard> {
                             style: const TextStyle(fontSize: 11, color: AppTheme.textSub)),
                         ],
                       ]),
+                      // Payé le + méthode/référence — comme l'historique web.
+                      if (widget.payment['paidAt'] != null)
+                        Text(
+                          'Payé le ${DateFormat('dd/MM/yyyy', 'fr').format(DateTime.tryParse(widget.payment['paidAt'].toString()) ?? DateTime.now())}'
+                          '${widget.payment['provider'] != null ? ' · ${widget.payment['provider']}' : ''}'
+                          '${widget.payment['providerRef'] != null ? ' · réf. ${widget.payment['providerRef']}' : ''}',
+                          style: const TextStyle(fontSize: 11, color: AppTheme.textSub),
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                        ),
                     ],
                   ),
                 ),

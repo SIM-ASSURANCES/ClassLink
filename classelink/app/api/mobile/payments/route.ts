@@ -21,6 +21,7 @@ export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, ten
       const rows: any[] = await tenantDb.$queryRaw`
         SELECT
           p.id, p.amount, p.due_date, p.status,
+          p.paid_at, p.provider, p.provider_ref,
           COALESCE(ft.name, 'Frais scolaires') AS description,
           p.created_at,
           u.first_name || ' ' || u.last_name AS student_name
@@ -59,6 +60,7 @@ export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, ten
     const rows: any[] = await tenantDb.$queryRaw`
       SELECT
         p.id, p.amount, p.due_date, p.status,
+        p.paid_at, p.provider, p.provider_ref,
         COALESCE(ft.name, 'Frais scolaires') AS description,
         p.created_at
       FROM payments p
@@ -81,6 +83,9 @@ function _format(rows: any[], withStudent: boolean) {
     status:      r.status,
     description: r.description,
     createdAt:   r.created_at,
+    paidAt:      r.paid_at,
+    provider:    r.provider,
+    providerRef: r.provider_ref,
     ...(withStudent ? { studentName: r.student_name } : {}),
   }))
 }

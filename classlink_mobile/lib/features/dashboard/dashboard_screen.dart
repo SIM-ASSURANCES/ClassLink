@@ -15,13 +15,13 @@ class DashboardScreen extends ConsumerWidget {
     final grades = ref.watch(gradesProvider(null));
     final user   = auth.user!;
 
+    // Moyenne générale du dernier trimestre noté, pondérée par le coefficient
+    // matière — même calcul que la page Notes (web et mobile).
     double? globalAvg;
-    final subjects = grades.value?.subjects ?? const [];
-    if (subjects.isNotEmpty) {
-      final withAvg = subjects.where((s) => s.average != null).toList();
-      if (withAvg.isNotEmpty) {
-        globalAvg = withAvg.fold(0.0, (s, sub) => s + sub.average!) / withAvg.length;
-      }
+    final terms = grades.value?.terms ?? const [];
+    for (final term in terms.reversed) {
+      final avg = term.generalAverage;
+      if (avg != null) { globalAvg = avg; break; }
     }
 
     return Scaffold(

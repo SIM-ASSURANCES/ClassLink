@@ -8,6 +8,7 @@ export const GET = withMobileAuth(['PARENT'], async (_req, { user, tenantDb }) =
       s.student_id  AS student_number,
       u.first_name, u.last_name, u.avatar_url,
       c.name        AS class_name,
+      l.name        AS level_name,
       ay.name       AS academic_year,
       ps.relation
     FROM parent_students ps
@@ -16,6 +17,7 @@ export const GET = withMobileAuth(['PARENT'], async (_req, { user, tenantDb }) =
     JOIN users u ON u.id = s.user_id
     LEFT JOIN enrollments e ON e.student_id = s.id AND e.status = 'ACTIVE'
     LEFT JOIN classes c ON c.id = e.class_id
+    LEFT JOIN levels l ON l.id = c.level_id
     LEFT JOIN academic_years ay ON ay.is_current = true
     WHERE p.user_id = ${user.userId}
     ORDER BY u.last_name, u.first_name
@@ -29,6 +31,7 @@ export const GET = withMobileAuth(['PARENT'], async (_req, { user, tenantDb }) =
       lastName:      c.last_name,
       avatarUrl:     c.avatar_url,
       className:     c.class_name,
+      levelName:     c.level_name,
       academicYear:  c.academic_year,
       relation:      c.relation,
     })),

@@ -11,7 +11,7 @@ export const GET = withMobileAuth(['PARENT'], async (_req, { user, tenantDb }) =
       u.first_name  AS student_first_name,
       u.last_name   AS student_last_name,
       ta.status     AS authorization_status,
-      ta.signed_at
+      ta.signed_at, ta.notes
     FROM parent_students ps
     JOIN parents p  ON p.id = ps.parent_id
     JOIN students s ON s.id = ps.student_id
@@ -42,6 +42,7 @@ export const GET = withMobileAuth(['PARENT'], async (_req, { user, tenantDb }) =
       studentLastName:      r.student_last_name,
       authorizationStatus:  r.authorization_status ?? 'PENDING',
       signedAt:             r.signed_at,
+      notes:                r.notes,
     })),
   })
 })

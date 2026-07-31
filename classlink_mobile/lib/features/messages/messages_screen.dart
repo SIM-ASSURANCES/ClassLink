@@ -89,6 +89,16 @@ class MessagesScreen extends ConsumerWidget {
                           ],
                         ),
                         const SizedBox(height: 8),
+                        // Sujet du message — affiché en gras comme sur le web.
+                        if ((msg['subject'] as String?)?.isNotEmpty ?? false) ...[
+                          Text(msg['subject'] as String,
+                            style: TextStyle(
+                              fontSize: 13, fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
+                              color: AppTheme.textMain),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                        ],
                         Text(msg['content'] as String? ?? '',
                           style: TextStyle(fontSize: 13, color: AppTheme.textMain, height: 1.5),
                           maxLines: 3,
