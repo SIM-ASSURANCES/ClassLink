@@ -49,6 +49,9 @@ dependencies:
   # Signature numérique (autorisations de sortie)
   signature: ^5.5.0
 
+  # Graphiques (courbes d'évolution notes/présence)
+  fl_chart: ^0.70.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

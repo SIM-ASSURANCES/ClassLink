@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
+import * as XLSX from 'xlsx'
 import { saveGrade, deleteGrade } from '@/actions/teacher'
 import { suggestGradeComment } from '@/actions/ai'
+import { ExportExcelButton } from '@/components/ui/export-excel-button'
 
 const GRADE_TYPES = [
   { value: 'DEVOIR',        label: 'Devoir' },
@@ -51,6 +53,8 @@ export function GradeSheet({ students: initial, subjectId, subjectName, termId }
   const [aiError, setAiError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [importInfo, setImportInfo] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleInput(studentId: string, value: string) {
     setInputs(prev => ({ ...prev, [studentId]: value }))
@@ -89,6 +93,7 @@ export function GradeSheet({ students: initial, subjectId, subjectName, termId }
   async function handleSaveAll() {
     setError(null)
     setSuccess(false)
+    setImportInfo(null)
     const toSave = students.filter(s => inputs[s.student_id]?.trim() !== '')
     if (toSave.length === 0) {
       setError('Aucune note à enregistrer.')
@@ -125,6 +130,59 @@ export function GradeSheet({ students: initial, subjectId, subjectName, termId }
     setSaving(gradeId)
     await deleteGrade(gradeId)
     setSaving(null)
+  }
+
+  /**
+   * Importe un fichier Excel/CSV (colonnes "N° élève" et "Note", "Appréciation"
+   * optionnelle) et pré-remplit la grille de saisie — l'enseignant vérifie
+   * avant de cliquer "Enregistrer toutes les notes" (même chemin que la saisie
+   * manuelle, aucune note n'est écrite tant qu'il n'a pas validé).
+   */
+  async function handleImportFile(file: File) {
+    setError(null)
+    setImportInfo(null)
+    try {
+      const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer, { type: 'array' })
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet)
+
+      const byNumber = new Map(students.map(s => [s.student_number.trim().toLowerCase(), s]))
+      const newInputs: Record<string, string> = {}
+      const newComments: Record<string, string> = {}
+      let matched = 0
+      let unmatched = 0
+
+      for (const row of rows) {
+        const numberKey = String(row['N° élève'] ?? row['Numero'] ?? row['student_number'] ?? '').trim().toLowerCase()
+        const rawValue = row['Note'] ?? row['note'] ?? row['value']
+        if (!numberKey || rawValue === undefined || rawValue === '') continue
+
+        const student = byNumber.get(numberKey)
+        const value = parseFloat(String(rawValue).replace(',', '.'))
+        if (!student || isNaN(value) || value < 0 || value > 20) { unmatched++; continue }
+
+        newInputs[student.student_id] = String(value)
+        const comment = row['Appréciation'] ?? row['Appreciation'] ?? row['comment']
+        if (comment) newComments[student.student_id] = String(comment).trim()
+        matched++
+      }
+
+      if (matched === 0) {
+        setError('Aucune ligne valide reconnue. Vérifiez les colonnes "N° élève" et "Note".')
+        return
+      }
+
+      setInputs(prev => ({ ...prev, ...newInputs }))
+      setComments(prev => ({ ...prev, ...newComments }))
+      setImportInfo(
+        `${matched} note${matched > 1 ? 's' : ''} importée${matched > 1 ? 's' : ''} dans la grille` +
+        (unmatched > 0 ? ` (${unmatched} ligne${unmatched > 1 ? 's' : ''} ignorée${unmatched > 1 ? 's' : ''}).` : '.') +
+        ' Vérifiez puis cliquez sur "Enregistrer toutes les notes".'
+      )
+    } catch {
+      setError('Fichier illisible. Utilisez un export .xlsx ou .csv avec les colonnes "N° élève" et "Note".')
+    }
   }
 
   return (
@@ -164,10 +222,52 @@ export function GradeSheet({ students: initial, subjectId, subjectName, termId }
           >
             {pending ? 'Enregistrement...' : 'Enregistrer toutes les notes'}
           </button>
+
+          <div className="ml-auto flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={e => {
+                const file = e.target.files?.[0]
+                if (file) handleImportFile(file)
+                e.target.value = ''
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-gray-200
+                         text-gray-700 text-sm font-medium rounded-lg transition"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Importer
+            </button>
+            <ExportExcelButton
+              rows={students.map(s => ({
+                'N° élève': s.student_number,
+                'Nom': s.last_name,
+                'Prénom': s.first_name,
+                'Note': '',
+                'Appréciation': '',
+                'Moyenne matière actuelle': s.average ?? '',
+              }))}
+              filename={`notes-${subjectName || 'matiere'}`}
+              sheetName="Notes"
+              label="Exporter"
+            />
+          </div>
         </div>
 
         {error && (
           <p className="mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+        )}
+        {importInfo && (
+          <p className="mt-3 text-sm text-blue-700 bg-blue-50 rounded-lg px-3 py-2">{importInfo}</p>
         )}
         {success && (
           <p className="mt-3 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">

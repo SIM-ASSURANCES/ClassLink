@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/grades_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/grade_trend_chart.dart';
 import '../../parent/widgets/parent_paywall_gate.dart';
 
 // Libellés des types de note — identiques au web (notes/page.tsx).
@@ -45,6 +46,26 @@ class GradesScreen extends ConsumerWidget {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  if (terms.any((t) => t.generalAverage != null))
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Évolution de la moyenne générale',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.textMain)),
+                          GradeTrendChart(terms: [
+                            for (final t in terms) (name: t.name, average: t.generalAverage),
+                          ]),
+                        ],
+                      ),
+                    ),
                   // Récapitulatif des moyennes par trimestre — comme le web.
                   Row(
                     children: terms.map((t) {

@@ -1,4 +1,5 @@
-import { getStudentTerms, getStudentGrades } from '@/actions/student'
+import { getStudentTerms, getStudentGrades, getStudentTermAverages } from '@/actions/student'
+import { GradeTrendChart } from '@/components/charts/grade-trend-chart'
 import Link from 'next/link'
 
 interface Props {
@@ -11,7 +12,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default async function StudentGradesPage({ searchParams }: Props) {
   const params = await searchParams
-  const terms  = await getStudentTerms()
+  const [terms, termAverages] = await Promise.all([getStudentTerms(), getStudentTermAverages()])
   const selectedTermId = params.termId ?? (terms[0]?.id ?? '')
   const selectedTerm   = terms.find((t: any) => t.id === selectedTermId)
   const { rows, generalAverage } = selectedTermId
@@ -24,6 +25,13 @@ export default async function StudentGradesPage({ searchParams }: Props) {
         <h1 className="text-2xl font-bold text-gray-900">Mes notes</h1>
         <p className="text-sm text-gray-500 mt-1">Consultez vos notes et moyennes par trimestre.</p>
       </div>
+
+      {termAverages.some((t: any) => t.average !== null) && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">Évolution de la moyenne générale</h2>
+          <GradeTrendChart terms={termAverages} />
+        </div>
+      )}
 
       {/* Sélecteur trimestre */}
       <div className="flex flex-wrap gap-2">

@@ -102,6 +102,56 @@ export async function getStudentGrades(termId: string) {
   return { rows, generalAverage }
 }
 
+/** Moyenne générale de l'élève par trimestre de l'année en cours — pour la courbe d'évolution. */
+export async function getStudentTermAverages() {
+  const { db, session } = await getStudentDb()
+
+  const student: any[] = await db.$queryRaw`
+    SELECT s.id, c.level_id FROM students s
+    LEFT JOIN enrollments e ON e.student_id = s.id AND e.status = 'ACTIVE'
+    LEFT JOIN classes c ON c.id = e.class_id
+    WHERE s.user_id = ${session.user.id} LIMIT 1
+  `
+  if (!student[0]) return []
+  const { id: studentId, level_id: levelId } = student[0]
+
+  const averages: any[] = await db.$queryRaw`
+    SELECT g.term_id, t.name AS term_name, t.term_order,
+           ROUND(
+             SUM(
+               (SUM(g.value * g.coefficient) / NULLIF(SUM(g.coefficient), 0))
+               * COALESCE(ls.coefficient, 1)
+             ) OVER (PARTITION BY g.term_id)
+             /
+             NULLIF(SUM(COALESCE(ls.coefficient, 1)) OVER (PARTITION BY g.term_id), 0),
+             2
+           ) AS general_average
+    FROM grades g
+    JOIN terms t ON t.id = g.term_id
+    JOIN academic_years ay ON ay.id = t.academic_year_id AND ay.is_current = TRUE
+    LEFT JOIN level_subjects ls ON ls.subject_id = g.subject_id AND ls.level_id = ${levelId}
+    WHERE g.student_id = ${studentId}
+    GROUP BY g.term_id, g.subject_id, t.name, t.term_order, ls.coefficient
+  `
+
+  const byTerm: Record<string, { term_id: string; term_name: string; term_order: number; average: number | null }> = {}
+  for (const a of averages) {
+    if (!byTerm[a.term_id]) {
+      byTerm[a.term_id] = {
+        term_id: a.term_id, term_name: a.term_name, term_order: a.term_order,
+        average: a.general_average ? parseFloat(a.general_average) : null,
+      }
+    }
+  }
+
+  const allTerms: any[] = await db.$queryRaw`
+    SELECT id, name, term_order FROM terms t
+    JOIN academic_years ay ON ay.id = t.academic_year_id AND ay.is_current = TRUE
+    ORDER BY term_order
+  `
+  return allTerms.map(t => ({ name: t.name, average: byTerm[t.id]?.average ?? null }))
+}
+
 export async function getStudentAttendanceSummary() {
   const { db, session } = await getStudentDb()
   return db.$queryRaw`

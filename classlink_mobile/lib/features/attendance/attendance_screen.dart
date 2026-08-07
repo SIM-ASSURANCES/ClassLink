@@ -5,6 +5,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/providers/refresh_provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/attendance_trend_chart.dart';
 import '../parent/widgets/parent_paywall_gate.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
@@ -53,12 +54,39 @@ class AttendanceScreen extends ConsumerWidget {
         data: (data) {
           final stats   = data['stats']   as Map<String, dynamic>;
           final records = data['records'] as List<dynamic>;
+          final byTerm  = data['byTerm'] as List<dynamic>? ?? const [];
 
           return RefreshIndicator(
             onRefresh: () => ref.refresh(attendanceProvider(studentId).future),
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                if (byTerm.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Évolution par trimestre',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.textMain)),
+                        AttendanceTrendChart(terms: [
+                          for (final t in byTerm)
+                            (
+                              name: (t as Map<String, dynamic>)['termName'] as String,
+                              present: t['present'] as int? ?? 0,
+                              late: t['late'] as int? ?? 0,
+                              absent: t['absent'] as int? ?? 0,
+                            ),
+                        ]),
+                      ],
+                    ),
+                  ),
                 // Statistiques
                 Row(
                   children: [

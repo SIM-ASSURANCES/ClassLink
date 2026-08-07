@@ -18,18 +18,33 @@ export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, ten
     studentSqlId = `'${studentId.replace(/'/g, "''")}'`
   }
 
-  const rows: any[] = await tenantDb.$queryRawUnsafe(`
-    SELECT
-      a.id, a.date, a.status, a.justified, a.justification AS comment,
-      s.name AS subject_name
-    FROM attendances a
-    LEFT JOIN schedules sc ON sc.id = a.schedule_id
-    LEFT JOIN teacher_subject_classes tsc ON tsc.id = sc.teacher_subject_class_id
-    LEFT JOIN subjects s ON s.id = tsc.subject_id
-    WHERE a.student_id = ${studentSqlId}
-    ORDER BY a.date DESC
-    LIMIT 100
-  `)
+  const [rows, byTermRows]: [any[], any[]] = await Promise.all([
+    tenantDb.$queryRawUnsafe(`
+      SELECT
+        a.id, a.date, a.status, a.justified, a.justification AS comment,
+        s.name AS subject_name
+      FROM attendances a
+      LEFT JOIN schedules sc ON sc.id = a.schedule_id
+      LEFT JOIN teacher_subject_classes tsc ON tsc.id = sc.teacher_subject_class_id
+      LEFT JOIN subjects s ON s.id = tsc.subject_id
+      WHERE a.student_id = ${studentSqlId}
+      ORDER BY a.date DESC
+      LIMIT 100
+    `),
+    // Courbe d'évolution par trimestre de l'année en cours — même requête que
+    // le web (actions/parent.ts::getChildDetails / student.ts::getStudentAttendanceSummary).
+    tenantDb.$queryRawUnsafe(`
+      SELECT t.name AS term_name, t.term_order,
+             COUNT(CASE WHEN a.status='PRESENT' THEN 1 END)::int AS present,
+             COUNT(CASE WHEN a.status='LATE'    THEN 1 END)::int AS late,
+             COUNT(CASE WHEN a.status='ABSENT'  THEN 1 END)::int AS absent
+      FROM terms t
+      JOIN academic_years ay ON ay.id = t.academic_year_id AND ay.is_current = TRUE
+      LEFT JOIN attendances a ON a.term_id = t.id AND a.student_id = ${studentSqlId}
+      GROUP BY t.id, t.name, t.term_order
+      ORDER BY t.term_order
+    `),
+  ])
 
   const stats = {
     absent:    rows.filter(r => r.status === 'ABSENT').length,
@@ -47,5 +62,8 @@ export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, ten
       subjectName: r.subject_name,
     })),
     stats,
+    byTerm: byTermRows.map(t => ({
+      termName: t.term_name, present: t.present, late: t.late, absent: t.absent,
+    })),
   })
 })

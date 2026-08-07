@@ -1,4 +1,5 @@
 import { getStudentAttendanceSummary } from '@/actions/student'
+import { AttendanceTrendChart } from '@/components/charts/attendance-trend-chart'
 
 export default async function StudentAttendancePage() {
   const terms = await getStudentAttendanceSummary()
@@ -34,13 +35,20 @@ export default async function StudentAttendancePage() {
         </div>
       )}
 
+      {terms.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">Évolution par trimestre</h2>
+          <AttendanceTrendChart terms={terms.map((t: any) => ({ name: t.name, present: t.present, late: t.late, absent: t.absent }))} />
+        </div>
+      )}
+
       <div className="grid gap-4">
         {terms.map((t: any) => {
           const rate = t.total > 0 ? Math.round((t.present / t.total) * 100) : null
           return (
             <div key={t.id} className="bg-white rounded-xl border border-gray-200 p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-gray-900">{t.term_name}</h2>
+                <h2 className="text-sm font-semibold text-gray-900">{t.name}</h2>
                 {rate !== null && (
                   <span className={`text-sm font-bold ${rate >= 80 ? 'text-green-600' : rate >= 60 ? 'text-orange-600' : 'text-red-600'}`}>
                     {rate}% de présence

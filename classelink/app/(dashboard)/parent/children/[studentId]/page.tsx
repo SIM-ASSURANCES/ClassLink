@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { PayOnlineButton } from './pay-button'
 import { ChildTabs } from './child-tabs'
+import { GradeTrendChart } from '@/components/charts/grade-trend-chart'
+import { AttendanceTrendChart } from '@/components/charts/attendance-trend-chart'
 
 interface Props {
   params: Promise<{ studentId: string }>
@@ -82,10 +84,16 @@ export default async function ChildDetailPage({ params }: Props) {
       )}
 
       {/* Notes par trimestre */}
-      <div className="bg-white rounded-xl border border-gray-200">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900">Moyennes générales</h2>
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Moyennes générales</h2>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Évolution de la moyenne générale par trimestre</p>
         </div>
+        {terms.length > 0 && (
+          <div className="px-5 pt-4">
+            <GradeTrendChart terms={terms.map((t: any) => ({ name: t.name, average: t.average }))} />
+          </div>
+        )}
         <div className="divide-y divide-gray-50">
           {terms.length === 0 ? (
             <p className="px-5 py-6 text-sm text-gray-400 text-center">Aucun trimestre configuré.</p>
@@ -111,10 +119,20 @@ export default async function ChildDetailPage({ params }: Props) {
       </div>
 
       {/* Présences */}
-      <div className="bg-white rounded-xl border border-gray-200">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900">Présences par trimestre</h2>
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Présences par trimestre</h2>
         </div>
+        {attendance.length > 0 && (
+          <div className="px-5 pt-4">
+            <AttendanceTrendChart terms={attendance.map((t: any) => ({
+              name:   t.term_name,
+              present: Math.max((t.total ?? 0) - (t.absent ?? 0) - (t.late ?? 0), 0),
+              late:    t.late ?? 0,
+              absent:  t.absent ?? 0,
+            }))} />
+          </div>
+        )}
         <div className="divide-y divide-gray-50">
           {attendance.length === 0 ? (
             <p className="px-5 py-6 text-sm text-gray-400 text-center">Aucune donnée de présence.</p>

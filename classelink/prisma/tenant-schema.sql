@@ -855,3 +855,31 @@ CREATE TABLE IF NOT EXISTS parent_subscriptions (
 );
 CREATE INDEX IF NOT EXISTS idx_parent_sub_parent ON parent_subscriptions(parent_id);
 CREATE INDEX IF NOT EXISTS idx_agenda_class ON agenda_events(class_id);
+
+-- ─── Rendez-vous parent-enseignant ──────────────────────────────────────────
+-- L'enseignant publie des créneaux disponibles ; un parent en réserve un pour
+-- un de ses enfants. Annulation = passage à CANCELLED (jamais de suppression),
+-- ce qui libère automatiquement le créneau pour une nouvelle réservation.
+CREATE TABLE IF NOT EXISTS teacher_availability_slots (
+  id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  teacher_id  TEXT NOT NULL REFERENCES teachers(id),
+  start_time  TIMESTAMPTZ NOT NULL,
+  end_time    TIMESTAMPTZ NOT NULL,
+  location    TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_teacher_avail_teacher ON teacher_availability_slots(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_teacher_avail_start   ON teacher_availability_slots(start_time);
+
+CREATE TABLE IF NOT EXISTS appointments (
+  id           TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  slot_id      TEXT NOT NULL REFERENCES teacher_availability_slots(id),
+  parent_id    TEXT NOT NULL REFERENCES parents(id),
+  student_id   TEXT REFERENCES students(id),
+  reason       TEXT,
+  status       TEXT NOT NULL DEFAULT 'CONFIRMED' CHECK (status IN ('CONFIRMED','CANCELLED')),
+  cancelled_by TEXT CHECK (cancelled_by IN ('PARENT','TEACHER')),
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_appointments_slot   ON appointments(slot_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_parent ON appointments(parent_id);
