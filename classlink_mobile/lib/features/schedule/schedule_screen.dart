@@ -4,6 +4,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/providers/refresh_provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/ics_export.dart';
 import '../parent/widgets/parent_paywall_gate.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
@@ -60,6 +61,13 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Emploi du temps'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_month_outlined),
+            tooltip: 'Exporter (.ics)',
+            onPressed: () => openIcsExport(context, ApiConstants.icsSchedule, studentId: widget.studentId),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabs,
           isScrollable: false,

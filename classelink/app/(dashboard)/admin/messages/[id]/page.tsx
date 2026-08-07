@@ -1,6 +1,7 @@
 import { getMessage } from '@/actions/messages'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { ReadReceipt } from '@/components/messages/read-receipt'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -39,6 +40,12 @@ export default async function AdminMessageDetailPage({ params }: Props) {
                 hour: '2-digit', minute: '2-digit',
               })}
             </span>
+            {msg.is_sender && (
+              <span className="flex items-center gap-1.5">
+                <ReadReceipt read={!!msg.read_at} />
+                {msg.read_at ? 'Lu' : 'Envoyé'}
+              </span>
+            )}
           </div>
         </div>
 

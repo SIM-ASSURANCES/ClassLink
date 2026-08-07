@@ -31,7 +31,7 @@ export default async function ParentLayout({ children }: { children: React.React
     <SidebarProvider>
       <SchoolThemeFont fontFamily={theme.font_family} />
       <div
-        className="flex h-screen bg-gray-50 overflow-hidden"
+        className="flex h-screen bg-gray-50 dark:bg-gray-950 overflow-hidden"
         style={schoolThemeStyle({
           primaryColor:   theme.primary_color,
           secondaryColor: theme.secondary_color,

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getTenantPrisma } from '@/lib/db/tenant'
 import { requireRole } from '@/lib/auth/rbac'
-import { notifyParentsOfStudent } from '@/lib/notifications/create'
+import { notifyParentsOfStudent, notifyUser } from '@/lib/notifications/create'
 import type { ActionResult } from '@/types'
 
 function toDate(s: string | null | undefined): Date | null {
@@ -154,11 +154,26 @@ export async function saveGrade(
     } else {
       await db.$executeRaw`
         INSERT INTO grades
-          (student_id, subject_id, term_id, type, value, max_value, coefficient, comment, created_by)
+          (student_id, subject_id, term_id, type, value, max_value, coefficient, comment, created_by, published_at)
         VALUES
           (${studentId}, ${subjectId}, ${termId}, ${type},
-           ${value}, 20, ${coefficient}, ${comment}, ${session.user.id})
+           ${value}, 20, ${coefficient}, ${comment}, ${session.user.id}, NOW())
       `
+
+      // Notifie l'élève et ses parents de la nouvelle note (best-effort, note
+      // fraîchement créée uniquement — pas à chaque modification).
+      const [student, subject]: [any[], any[]] = await Promise.all([
+        db.$queryRaw`SELECT s.id, s.user_id, u.first_name, u.last_name FROM students s JOIN users u ON u.id = s.user_id WHERE s.id = ${studentId}`,
+        db.$queryRaw`SELECT name FROM subjects WHERE id = ${subjectId}`,
+      ])
+      if (student[0]) {
+        const subjectName = subject[0]?.name ?? 'une matière'
+        const body = `Une nouvelle note de ${value.toFixed(2)}/20 a été publiée en ${subjectName}.`
+        await Promise.all([
+          notifyUser(db, { userId: student[0].user_id, type: 'GRADE_PUBLISHED', title: 'Nouvelle note', body, href: '/grades' }),
+          notifyParentsOfStudent(db, studentId, { type: 'GRADE_PUBLISHED', title: 'Nouvelle note', body: `${student[0].first_name} ${student[0].last_name} — ${body}`, href: '/parent' }),
+        ])
+      }
     }
     revalidatePath('/teacher/grades')
     return { success: true, data: undefined }

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ReadReceipt } from './read-receipt'
 
 interface MessageListProps {
   messages: any[]
@@ -75,6 +76,11 @@ export function MessageList({ messages, type, basePath }: MessageListProps) {
 
             {isUnread && (
               <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-2" />
+            )}
+            {type === 'sent' && (
+              <div className="flex-shrink-0 mt-2" title={msg.read_at ? 'Lu' : 'Envoyé, non lu'}>
+                <ReadReceipt read={!!msg.read_at} />
+              </div>
             )}
           </Link>
         )

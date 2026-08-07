@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Mode sombre par classe (.dark sur <html>) plutôt que par préférence système
+   uniquement — pilotable par ThemeToggle. Portée actuelle : coquille de
+   l'application (barre du haut, navigation) — voir components/theme/. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #0f172a;
@@ -11,6 +16,18 @@
   --muted-foreground: #64748b;
   --border: #e2e8f0;
   --radius: 0.5rem;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #e2e8f0;
+  --primary: #7a63fb;
+  --primary-foreground: #ffffff;
+  --secondary: #ffe965;
+  --secondary-foreground: #0f172a;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --border: #334155;
 }
 
 /* Palette de marque MyClassLink (#1800ad) : remplace la palette bleue par

@@ -35,7 +35,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
-      <head />
+      <head>
+        {/* Applique la classe .dark avant l'hydratation (évite le flash clair→sombre). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('myclasslink-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="min-h-full bg-background text-foreground">
         <NavigationProgress />
         {children}

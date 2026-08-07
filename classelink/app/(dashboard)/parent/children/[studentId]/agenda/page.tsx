@@ -82,6 +82,16 @@ export default async function AgendaPage({ params, searchParams }: Props) {
           <h1 className="text-xl font-bold text-gray-900">{profile.first_name} {profile.last_name}</h1>
           <p className="text-sm text-gray-500">{profile.class_name} · Agenda scolaire</p>
         </div>
+        <a
+          href={`/api/ics/agenda?studentId=${studentId}`}
+          className="ml-auto flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600
+                     bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          <span className="hidden sm:inline">Exporter (.ics)</span>
+        </a>
       </div>
 
       <ChildTabs studentId={studentId} />

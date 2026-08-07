@@ -5,6 +5,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/providers/refresh_provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/ics_export.dart';
 import '../parent/widgets/parent_paywall_gate.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
@@ -38,7 +39,16 @@ class AgendaScreen extends ConsumerWidget {
     final async = ref.watch(agendaProvider(studentId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Agenda scolaire')),
+      appBar: AppBar(
+        title: const Text('Agenda scolaire'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_month_outlined),
+            tooltip: 'Exporter (.ics)',
+            onPressed: () => openIcsExport(context, ApiConstants.icsAgenda, studentId: studentId),
+          ),
+        ],
+      ),
       body: ParentPaywallGate(
         featureName: 'L\'agenda scolaire',
         featureKey: 'agenda',

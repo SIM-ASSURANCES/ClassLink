@@ -3,6 +3,7 @@
 import { getTenantPrisma } from '@/lib/db/tenant'
 import { requireRole } from '@/lib/auth/rbac'
 import { revalidatePath } from 'next/cache'
+import { notifyUser } from '@/lib/notifications/create'
 import type { ActionResult } from '@/types'
 
 async function getDb() {
@@ -62,6 +63,9 @@ export async function getMessage(id: string): Promise<any | null> {
     msg.read_at = new Date()
   }
 
+  // Permet à la page d'afficher l'accusé de lecture uniquement côté expéditeur.
+  msg.is_sender = String(msg.sender_id) === String(userId)
+
   return msg
 }
 
@@ -90,6 +94,16 @@ export async function sendMessage(
     revalidatePath('/teacher/messages')
     revalidatePath('/student/messages')
     revalidatePath('/parent/messages')
+
+    // Best-effort — ne doit jamais faire échouer l'envoi du message.
+    await notifyUser(db, {
+      userId: recipientId,
+      type:   'MESSAGE_RECEIVED',
+      title:  `Message de ${session.user.name ?? session.user.email ?? 'un contact'}`,
+      body:   subject,
+      href:   '/messages',
+    })
+
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e?.message ?? 'Une erreur est survenue.' }

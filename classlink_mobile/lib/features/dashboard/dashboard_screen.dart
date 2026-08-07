@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../auth/providers/auth_provider.dart';
 import '../grades/providers/grades_provider.dart';
 import '../parent/screens/children_screen.dart';
+import '../../core/providers/theme_provider.dart';
 import '../../core/theme/app_theme.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -41,6 +42,12 @@ class DashboardScreen extends ConsumerWidget {
               tooltip: 'Sorties',
               onPressed: () => context.push('/trips'),
             ),
+          IconButton(
+            icon: Icon(ref.watch(themeModeProvider) == ThemeMode.dark
+                ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+            tooltip: 'Changer de thème',
+            onPressed: () => ref.read(themeModeProvider.notifier).toggle(),
+          ),
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             onPressed: () async => ref.read(authProvider.notifier).logout(),

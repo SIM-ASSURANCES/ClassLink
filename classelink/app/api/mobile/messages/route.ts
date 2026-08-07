@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withMobileAuth } from '@/lib/auth/mobile-guard'
+import { notifyUser } from '@/lib/notifications/create'
 
 export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (_req, { user, tenantDb }) => {
   const rows: any[] = await tenantDb.$queryRaw`
@@ -44,6 +45,7 @@ export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (_req, { user, te
       subject:       s.subject,
       content:       s.content,
       createdAt:     s.created_at,
+      isRead:        s.is_read,
       recipientName: s.recipient_name,
     })),
     unreadCount: rows.filter(r => !r.is_read).length,
@@ -57,11 +59,24 @@ export const POST = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, te
   }
 
   try {
-    const rows: any[] = await tenantDb.$queryRaw`
-      INSERT INTO messages (sender_id, recipient_id, subject, body)
-      VALUES (${user.userId}, ${recipientId}, ${(subject as string)?.trim() || null}, ${content as string})
-      RETURNING id, created_at
-    `
+    const trimmedSubject = (subject as string)?.trim() || null
+    const [rows, sender]: [any[], any[]] = await Promise.all([
+      tenantDb.$queryRaw`
+        INSERT INTO messages (sender_id, recipient_id, subject, body)
+        VALUES (${user.userId}, ${recipientId}, ${trimmedSubject}, ${content as string})
+        RETURNING id, created_at
+      `,
+      tenantDb.$queryRaw`SELECT first_name, last_name FROM users WHERE id = ${user.userId} LIMIT 1`,
+    ])
+
+    await notifyUser(tenantDb, {
+      userId: recipientId,
+      type:   'MESSAGE_RECEIVED',
+      title:  `Message de ${sender[0]?.first_name ?? ''} ${sender[0]?.last_name ?? ''}`.trim() || 'Nouveau message',
+      body:   trimmedSubject || content.slice(0, 80),
+      href:   '/messages',
+    })
+
     return NextResponse.json({ id: rows[0].id, createdAt: rows[0].created_at })
   } catch {
     return NextResponse.json({ error: 'Erreur lors de l\'envoi.' }, { status: 500 })
