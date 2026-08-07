@@ -1,6 +1,16 @@
 import 'package:dio/dio.dart';
+import '../services/connectivity_state.dart';
+import '../services/offline_cache.dart';
 import '../storage/secure_storage.dart';
 import 'api_constants.dart';
+
+bool _isNetworkError(DioException e) => switch (e.type) {
+  DioExceptionType.connectionError ||
+  DioExceptionType.connectionTimeout ||
+  DioExceptionType.receiveTimeout ||
+  DioExceptionType.sendTimeout => true,
+  _ => false,
+};
 
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
@@ -58,8 +68,31 @@ class ApiClient {
 
   Dio get dio => _dio;
 
-  Future<Response> get(String path, {Map<String, dynamic>? params}) =>
-      _dio.get(path, queryParameters: params);
+  /// GET avec repli sur le cache local (lecture seule) si l'appareil est
+  /// hors-ligne — voir OfflineCache. Les écrans n'ont rien à changer : ils
+  /// reçoivent une Response normale, éventuellement servie depuis le cache
+  /// (offlineSince est mis à jour globalement pour le bandeau).
+  Future<Response> get(String path, {Map<String, dynamic>? params}) async {
+    try {
+      final resp = await _dio.get(path, queryParameters: params);
+      offlineSince.value = null;
+      OfflineCache.save(path, params, resp.data);
+      return resp;
+    } on DioException catch (e) {
+      if (_isNetworkError(e)) {
+        final cached = await OfflineCache.load(path, params);
+        if (cached != null) {
+          offlineSince.value = DateTime.tryParse(cached['cachedAt'] as String? ?? '');
+          return Response(
+            requestOptions: e.requestOptions,
+            data: cached['data'],
+            statusCode: 200,
+          );
+        }
+      }
+      rethrow;
+    }
+  }
 
   Future<Response> post(String path, {dynamic data}) =>
       _dio.post(path, data: data);

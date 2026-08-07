@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../auth/providers/auth_provider.dart';
 import '../grades/providers/grades_provider.dart';
 import '../parent/screens/children_screen.dart';
+import '../schedule/schedule_screen.dart';
 import '../../core/providers/theme_provider.dart';
+import '../../core/services/home_widget_service.dart';
 import '../../core/theme/app_theme.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -15,6 +17,15 @@ class DashboardScreen extends ConsumerWidget {
     final auth   = ref.watch(authProvider);
     final grades = ref.watch(gradesProvider(null));
     final user   = auth.user!;
+
+    // Widget écran d'accueil (Android, best-effort) : mis à jour à chaque
+    // rechargement de l'emploi du temps. Comptes élève uniquement pour
+    // l'instant — un parent peut avoir plusieurs enfants.
+    if (user.isStudent) {
+      ref.listen(scheduleProvider(null), (previous, next) {
+        next.whenData(HomeWidgetService.updateNextClass);
+      });
+    }
 
     // Moyenne générale du dernier trimestre noté, pondérée par le coefficient
     // matière — même calcul que la page Notes (web et mobile).
@@ -47,6 +58,11 @@ class DashboardScreen extends ConsumerWidget {
                 ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
             tooltip: 'Changer de thème',
             onPressed: () => ref.read(themeModeProvider.notifier).toggle(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Réglages',
+            onPressed: () => context.push('/settings'),
           ),
           IconButton(
             icon: const Icon(Icons.logout_rounded),

@@ -52,6 +52,12 @@ dependencies:
   # Graphiques (courbes d'évolution notes/présence)
   fl_chart: ^0.70.2
 
+  # Déverrouillage biométrique
+  local_auth: ^2.3.0
+
+  # Widget écran d'accueil (Android)
+  home_widget: ^0.7.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

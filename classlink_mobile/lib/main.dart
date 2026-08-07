@@ -5,6 +5,7 @@ import 'core/providers/refresh_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/services/notification_service.dart';
 import 'core/theme/app_theme.dart';
+import 'core/widgets/offline_banner.dart';
 import 'router.dart';
 
 void main() async {
@@ -72,6 +73,7 @@ class _MyClassLinkAppState extends ConsumerState<MyClassLinkApp> with WidgetsBin
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
       routerConfig: router,
+      builder: (context, child) => OfflineBanner(child: child ?? const SizedBox.shrink()),
     );
   }
 }

@@ -883,3 +883,18 @@ CREATE TABLE IF NOT EXISTS appointments (
 );
 CREATE INDEX IF NOT EXISTS idx_appointments_slot   ON appointments(slot_id);
 CREATE INDEX IF NOT EXISTS idx_appointments_parent ON appointments(parent_id);
+
+-- ─── Check-in QR (carte d'élève) ────────────────────────────────────────────
+-- Le personnel scanne la carte QR de l'élève (qui encode simplement son
+-- numéro matricule, voir lib/qrcode.ts) pour pointer une entrée. Périmètre
+-- initial : cantine — le module est une simple colonne pour pouvoir étendre
+-- plus tard (bibliothèque, sorties) sans nouvelle table.
+CREATE TABLE IF NOT EXISTS check_ins (
+  id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  student_id  TEXT NOT NULL REFERENCES students(id),
+  module      TEXT NOT NULL DEFAULT 'CAFETERIA' CHECK (module IN ('CAFETERIA')),
+  scanned_by  TEXT NOT NULL REFERENCES users(id),
+  scanned_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_checkins_student    ON check_ins(student_id);
+CREATE INDEX IF NOT EXISTS idx_checkins_scanned_at ON check_ins(scanned_at);

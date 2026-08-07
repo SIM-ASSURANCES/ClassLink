@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_constants.dart';
+import '../../../core/services/biometric_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/storage/secure_storage.dart';
 
@@ -52,11 +53,17 @@ class AuthState {
   final AuthUser? user;
   final bool      isLoading;
   final String?   error;
+  /// Session restaurée depuis le stockage mais en attente d'un déverrouillage
+  /// biométrique (voir BiometricService) — distinct de "non connecté".
+  final bool      locked;
 
-  const AuthState({this.user, this.isLoading = false, this.error});
-  bool get isAuthenticated => user != null;
-  AuthState copyWith({AuthUser? user, bool? isLoading, String? error}) =>
-    AuthState(user: user ?? this.user, isLoading: isLoading ?? this.isLoading, error: error);
+  const AuthState({this.user, this.isLoading = false, this.error, this.locked = false});
+  bool get isAuthenticated => user != null && !locked;
+  AuthState copyWith({AuthUser? user, bool? isLoading, String? error, bool? locked}) =>
+    AuthState(
+      user: user ?? this.user, isLoading: isLoading ?? this.isLoading,
+      error: error, locked: locked ?? this.locked,
+    );
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
@@ -70,7 +77,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (userData != null) {
       try {
         final map = jsonDecode(userData) as Map<String, dynamic>;
-        state = AuthState(user: AuthUser(
+        final user = AuthUser(
           id:         map['id'],
           firstName:  map['firstName'],
           lastName:   map['lastName'],
@@ -79,11 +86,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
           avatarUrl:  map['avatarUrl'],
           schoolName: map['schoolName'],
           schoolSlug: map['schoolSlug'],
-        ));
+        );
+        final needsUnlock = await BiometricService.isEnabled();
+        state = AuthState(user: user, locked: needsUnlock);
         return;
       } catch (_) {}
     }
     state = const AuthState();
+  }
+
+  /// Tente le déverrouillage biométrique de la session restaurée. Retourne
+  /// false en cas d'échec/annulation — l'app reste verrouillée.
+  Future<bool> unlockWithBiometrics() async {
+    final ok = await BiometricService.authenticate();
+    if (ok) state = state.copyWith(locked: false);
+    return ok;
   }
 
   Future<String?> login({

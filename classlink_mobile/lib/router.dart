@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'core/widgets/app_shell.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
+import 'features/auth/screens/lock_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/grades/screens/grades_screen.dart';
 import 'features/schedule/schedule_screen.dart';
@@ -22,6 +23,7 @@ import 'features/agenda/agenda_screen.dart';
 import 'features/sanctions/sanctions_screen.dart';
 import 'features/summary/summary_screen.dart';
 import 'features/appointments/appointments_screen.dart';
+import 'features/settings/settings_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
@@ -29,14 +31,20 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
     redirect: (context, state) {
+      final isLocked   = authState.user != null && authState.locked;
       final isLoggedIn = authState.isAuthenticated;
       final isOnLogin  = state.matchedLocation == '/login';
-      if (!isLoggedIn && !isOnLogin) return '/login';
-      if (isLoggedIn  &&  isOnLogin) return '/';
+      final isOnLock   = state.matchedLocation == '/lock';
+
+      if (isLocked && !isOnLock) return '/lock';
+      if (!isLocked && isOnLock) return isLoggedIn ? '/' : '/login';
+      if (!isLoggedIn && !isLocked && !isOnLogin) return '/login';
+      if (isLoggedIn && isOnLogin) return '/';
       return null;
     },
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(path: '/lock',  builder: (context, state) => const LockScreen()),
 
       // Barre de navigation basse fixe et permanente (Accueil, Frais,
       // Cantine, Absences, Messages) : un seul Scaffold partagé par ces 5
@@ -152,6 +160,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/trips', builder: (context, state) => const TripsScreen()),
+      GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
       GoRoute(
         path: '/parent/child/:studentId/appointments',
         builder: (context, state) => AppointmentsScreen(

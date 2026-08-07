@@ -1,5 +1,7 @@
 package com.classlink.classlink_mobile
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// FlutterFragmentActivity (et non FlutterActivity) : requis par local_auth
+// pour afficher la boîte de dialogue d'authentification biométrique.
+class MainActivity : FlutterFragmentActivity()
