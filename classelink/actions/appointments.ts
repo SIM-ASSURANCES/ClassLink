@@ -35,7 +35,7 @@ export async function getTeacherAvailabilitySlots(): Promise<ActionResult<any[]>
         u.first_name AS parent_first_name, u.last_name AS parent_last_name,
         su.first_name AS student_first_name, su.last_name AS student_last_name
       FROM teacher_availability_slots s
-      LEFT JOIN appointments a ON a.slot_id = s.id AND a.status = 'CONFIRMED'
+      LEFT JOIN teacher_appointments a ON a.slot_id = s.id AND a.status = 'CONFIRMED'
       LEFT JOIN parents p ON p.id = a.parent_id
       LEFT JOIN users u ON u.id = p.user_id
       LEFT JOIN students st ON st.id = a.student_id
@@ -90,7 +90,7 @@ export async function deleteAvailabilitySlot(slotId: string): Promise<ActionResu
     const { db, teacherId } = await getTeacherDb()
 
     const booked: any[] = await db.$queryRaw`
-      SELECT id FROM appointments WHERE slot_id = ${slotId} AND status = 'CONFIRMED' LIMIT 1
+      SELECT id FROM teacher_appointments WHERE slot_id = ${slotId} AND status = 'CONFIRMED' LIMIT 1
     `
     if (booked[0]) return { success: false, error: 'Ce créneau est réservé — annulez le rendez-vous plutôt.' }
 
@@ -146,7 +146,7 @@ export async function getTeacherOpenSlots(teacherId: string): Promise<ActionResu
       WHERE s.teacher_id = ${teacherId}
         AND s.start_time > NOW()
         AND NOT EXISTS (
-          SELECT 1 FROM appointments a WHERE a.slot_id = s.id AND a.status = 'CONFIRMED'
+          SELECT 1 FROM teacher_appointments a WHERE a.slot_id = s.id AND a.status = 'CONFIRMED'
         )
       ORDER BY s.start_time
     `
@@ -182,12 +182,12 @@ export async function bookAppointment(
     if (!slot[0]) return { success: false, error: 'Ce créneau n\'est plus disponible.' }
 
     const taken: any[] = await db.$queryRaw`
-      SELECT id FROM appointments WHERE slot_id = ${slotId} AND status = 'CONFIRMED' LIMIT 1
+      SELECT id FROM teacher_appointments WHERE slot_id = ${slotId} AND status = 'CONFIRMED' LIMIT 1
     `
     if (taken[0]) return { success: false, error: 'Ce créneau vient d\'être réservé par un autre parent.' }
 
     await db.$executeRaw`
-      INSERT INTO appointments (slot_id, parent_id, student_id, reason)
+      INSERT INTO teacher_appointments (slot_id, parent_id, student_id, reason)
       VALUES (${slotId}, ${parentId}, ${studentId}, ${reason?.trim() || null})
     `
 
@@ -219,7 +219,7 @@ export async function getParentAppointments(): Promise<ActionResult<any[]>> {
         s.start_time, s.end_time, s.location,
         u.first_name AS teacher_first_name, u.last_name AS teacher_last_name,
         su.first_name AS student_first_name, su.last_name AS student_last_name
-      FROM appointments a
+      FROM teacher_appointments a
       JOIN teacher_availability_slots s ON s.id = a.slot_id
       JOIN teachers t ON t.id = s.teacher_id
       JOIN users u ON u.id = t.user_id
@@ -245,7 +245,7 @@ export async function cancelAppointment(appointmentId: string): Promise<ActionRe
              p.user_id AS parent_user_id,
              tu.id AS teacher_user_id,
              a.parent_id, s.teacher_id
-      FROM appointments a
+      FROM teacher_appointments a
       JOIN teacher_availability_slots s ON s.id = a.slot_id
       JOIN teachers t ON t.id = s.teacher_id
       JOIN users tu ON tu.id = t.user_id
@@ -271,7 +271,7 @@ export async function cancelAppointment(appointmentId: string): Promise<ActionRe
     }
 
     await db.$executeRaw`
-      UPDATE appointments SET status = 'CANCELLED', cancelled_by = ${cancelledBy} WHERE id = ${appointmentId}
+      UPDATE teacher_appointments SET status = 'CANCELLED', cancelled_by = ${cancelledBy} WHERE id = ${appointmentId}
     `
 
     const dateLabel = new Date(appt.start_time).toLocaleString('fr-FR', {

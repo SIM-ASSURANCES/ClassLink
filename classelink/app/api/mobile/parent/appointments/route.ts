@@ -15,7 +15,7 @@ export const GET = withMobileAuth(['PARENT'], async (_req, { user, tenantDb }) =
       s.start_time, s.end_time, s.location,
       u.first_name AS teacher_first_name, u.last_name AS teacher_last_name,
       su.first_name AS student_first_name, su.last_name AS student_last_name
-    FROM appointments a
+    FROM teacher_appointments a
     JOIN teacher_availability_slots s ON s.id = a.slot_id
     JOIN teachers t ON t.id = s.teacher_id
     JOIN users u ON u.id = t.user_id
@@ -70,12 +70,12 @@ export const POST = withMobileAuth(['PARENT'], async (req, { user, tenantDb }) =
   if (!slot[0]) return NextResponse.json({ error: 'Ce créneau n\'est plus disponible.' }, { status: 409 })
 
   const taken: any[] = await tenantDb.$queryRaw`
-    SELECT id FROM appointments WHERE slot_id = ${slotId} AND status = 'CONFIRMED' LIMIT 1
+    SELECT id FROM teacher_appointments WHERE slot_id = ${slotId} AND status = 'CONFIRMED' LIMIT 1
   `
   if (taken[0]) return NextResponse.json({ error: 'Ce créneau vient d\'être réservé par un autre parent.' }, { status: 409 })
 
   await tenantDb.$executeRaw`
-    INSERT INTO appointments (slot_id, parent_id, student_id, reason)
+    INSERT INTO teacher_appointments (slot_id, parent_id, student_id, reason)
     VALUES (${slotId}, ${parentId}, ${studentId}, ${(reason as string)?.trim() || null})
   `
 

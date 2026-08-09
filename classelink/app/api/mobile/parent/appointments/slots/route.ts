@@ -13,7 +13,7 @@ export const GET = withMobileAuth(['PARENT'], async (req, { tenantDb }) => {
     WHERE s.teacher_id = ${teacherId}
       AND s.start_time > NOW()
       AND NOT EXISTS (
-        SELECT 1 FROM appointments a WHERE a.slot_id = s.id AND a.status = 'CONFIRMED'
+        SELECT 1 FROM teacher_appointments a WHERE a.slot_id = s.id AND a.status = 'CONFIRMED'
       )
     ORDER BY s.start_time
   `

@@ -871,7 +871,11 @@ CREATE TABLE IF NOT EXISTS teacher_availability_slots (
 CREATE INDEX IF NOT EXISTS idx_teacher_avail_teacher ON teacher_availability_slots(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_teacher_avail_start   ON teacher_availability_slots(start_time);
 
-CREATE TABLE IF NOT EXISTS appointments (
+-- Nommée `teacher_appointments` (et non `appointments`) : ce nom est déjà
+-- pris par une table plus ancienne et sans rapport (section "Rendez-vous"
+-- plus haut, teacher_id/parent_id/scheduled_at, non utilisée par le code
+-- actuel) — CREATE TABLE IF NOT EXISTS l'aurait sinon ignorée en silence.
+CREATE TABLE IF NOT EXISTS teacher_appointments (
   id           TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   slot_id      TEXT NOT NULL REFERENCES teacher_availability_slots(id),
   parent_id    TEXT NOT NULL REFERENCES parents(id),
@@ -881,8 +885,8 @@ CREATE TABLE IF NOT EXISTS appointments (
   cancelled_by TEXT CHECK (cancelled_by IN ('PARENT','TEACHER')),
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_appointments_slot   ON appointments(slot_id);
-CREATE INDEX IF NOT EXISTS idx_appointments_parent ON appointments(parent_id);
+CREATE INDEX IF NOT EXISTS idx_teacher_appointments_slot   ON teacher_appointments(slot_id);
+CREATE INDEX IF NOT EXISTS idx_teacher_appointments_parent ON teacher_appointments(parent_id);
 
 -- ─── Check-in QR (carte d'élève) ────────────────────────────────────────────
 -- Le personnel scanne la carte QR de l'élève (qui encode simplement son

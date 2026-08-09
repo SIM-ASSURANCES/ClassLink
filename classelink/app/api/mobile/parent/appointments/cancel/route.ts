@@ -10,7 +10,7 @@ export const POST = withMobileAuth(['PARENT'], async (req, { user, tenantDb }) =
 
   const rows: any[] = await tenantDb.$queryRaw`
     SELECT a.id, a.status, s.start_time, p.user_id AS parent_user_id, tu.id AS teacher_user_id
-    FROM appointments a
+    FROM teacher_appointments a
     JOIN teacher_availability_slots s ON s.id = a.slot_id
     JOIN teachers t ON t.id = s.teacher_id
     JOIN users tu ON tu.id = t.user_id
@@ -24,7 +24,7 @@ export const POST = withMobileAuth(['PARENT'], async (req, { user, tenantDb }) =
   if (appt.status !== 'CONFIRMED') return NextResponse.json({ error: 'Ce rendez-vous est déjà annulé.' }, { status: 400 })
 
   await tenantDb.$executeRaw`
-    UPDATE appointments SET status = 'CANCELLED', cancelled_by = 'PARENT' WHERE id = ${appointmentId}
+    UPDATE teacher_appointments SET status = 'CANCELLED', cancelled_by = 'PARENT' WHERE id = ${appointmentId}
   `
 
   const dateLabel = new Date(appt.start_time).toLocaleString('fr-FR', {
