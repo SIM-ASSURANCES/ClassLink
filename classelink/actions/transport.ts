@@ -284,7 +284,8 @@ export async function getStudentsForAssignment(): Promise<ActionResult<any[]>> {
     const { db } = await getAdminDb()
     const rows: any[] = await db.$queryRaw`
       SELECT s.id, u.first_name, u.last_name, c.name AS class_name,
-             st.route_id, st.stop_id, r.name AS route_name, bs.name AS stop_name
+             st.route_id, st.stop_id, r.name AS route_name, bs.name AS stop_name,
+             sub.id AS subscription_id, sub.status AS subscription_status, sub.amount_paid AS subscription_amount
       FROM students s
       JOIN users u ON u.id = s.user_id
       LEFT JOIN enrollments e ON e.student_id = s.id AND e.status = 'ACTIVE'
@@ -292,9 +293,78 @@ export async function getStudentsForAssignment(): Promise<ActionResult<any[]>> {
       LEFT JOIN student_transport st ON st.student_id = s.id
       LEFT JOIN bus_routes r ON r.id = st.route_id
       LEFT JOIN bus_route_stops bs ON bs.id = st.stop_id
+      LEFT JOIN bus_subscriptions sub ON sub.student_id = s.id
+        AND sub.academic_year_id = (SELECT id FROM academic_years WHERE is_current = TRUE LIMIT 1)
       ORDER BY u.last_name, u.first_name
     `
     return { success: true, data: rows }
+  } catch (e: any) {
+    return { success: false, error: dbError(e) }
+  }
+}
+
+// ─── Abonnement transport ─────────────────────────────────────────────────────
+
+export async function getBusSubscriptions(): Promise<ActionResult<any[]>> {
+  try {
+    const { db } = await getAdminDb()
+    const rows: any[] = await db.$queryRaw`
+      SELECT bsub.id, bsub.student_id, bsub.start_date, bsub.amount_paid, bsub.status,
+             u.first_name, u.last_name, c.name AS class_name
+      FROM bus_subscriptions bsub
+      JOIN students s ON s.id = bsub.student_id
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN enrollments e ON e.student_id = s.id AND e.status = 'ACTIVE'
+      LEFT JOIN classes c ON c.id = e.class_id
+      WHERE bsub.academic_year_id = (SELECT id FROM academic_years WHERE is_current = TRUE LIMIT 1)
+      ORDER BY u.last_name, u.first_name
+    `
+    return { success: true, data: rows }
+  } catch (e: any) {
+    return { success: false, error: dbError(e) }
+  }
+}
+
+/** Abonne (ou réactive) un élève au transport pour l'année académique courante. */
+export async function subscribeStudentTransport(
+  studentId: string,
+  startDate: string,
+  amount: number
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { db } = await getAdminDb()
+
+    const studentRows: any[] = await db.$queryRaw`SELECT id FROM students WHERE id = ${studentId} LIMIT 1`
+    if (!studentRows[0]) return { success: false, error: 'Élève introuvable.' }
+
+    const yearRows: any[] = await db.$queryRaw`SELECT id FROM academic_years WHERE is_current = TRUE LIMIT 1`
+    const academicYearId = yearRows[0]?.id
+    if (!academicYearId) return { success: false, error: 'Aucune année académique courante trouvée.' }
+
+    const rows: any[] = await db.$queryRaw`
+      INSERT INTO bus_subscriptions (student_id, academic_year_id, start_date, amount_paid, status)
+      VALUES (${studentId}, ${academicYearId}, ${new Date(startDate)}, ${amount}, 'ACTIVE')
+      ON CONFLICT (student_id, academic_year_id) DO UPDATE
+        SET start_date = EXCLUDED.start_date, amount_paid = EXCLUDED.amount_paid,
+            status = 'ACTIVE', updated_at = NOW()
+      RETURNING id
+    `
+    revalidatePath('/admin/transport')
+    return { success: true, data: { id: rows[0].id } }
+  } catch (e: any) {
+    return { success: false, error: dbError(e) }
+  }
+}
+
+const VALID_BUS_SUB_STATUSES = ['ACTIVE', 'SUSPENDED', 'CANCELLED']
+
+export async function updateBusSubscriptionStatus(subId: string, status: string): Promise<ActionResult> {
+  if (!VALID_BUS_SUB_STATUSES.includes(status)) return { success: false, error: 'Statut invalide.' }
+  try {
+    const { db } = await getAdminDb()
+    await db.$executeRaw`UPDATE bus_subscriptions SET status = ${status}, updated_at = NOW() WHERE id = ${subId}`
+    revalidatePath('/admin/transport')
+    return { success: true, data: undefined }
   } catch (e: any) {
     return { success: false, error: dbError(e) }
   }
@@ -507,6 +577,32 @@ export async function getChildTransportInfo(studentId: string): Promise<ActionRe
     if (!assignment[0]) return { success: true, data: null }
     const a = assignment[0]
 
+    const subRows: any[] = await db.$queryRaw`
+      SELECT status FROM bus_subscriptions
+      WHERE student_id = ${studentId}
+        AND academic_year_id = (SELECT id FROM academic_years WHERE is_current = TRUE LIMIT 1)
+      LIMIT 1
+    `
+    const subscribed = subRows[0]?.status === 'ACTIVE'
+
+    // Affecté mais pas (ou plus) abonné : on renseigne l'arrêt/horaires pour le
+    // message côté parent, mais pas le chauffeur ni la position (données
+    // sensibles réservées aux abonnés actifs).
+    if (!subscribed) {
+      return {
+        success: true,
+        data: {
+          subscribed: false,
+          routeName: a.route_name,
+          stop: {
+            name: a.stop_name,
+            morningPickupTime: a.morning_pickup_time,
+            afternoonDropoffTime: a.afternoon_dropoff_time,
+          },
+        },
+      }
+    }
+
     const trips: any[] = await db.$queryRaw`
       SELECT id, direction, status, started_at, ended_at
       FROM bus_trips
@@ -528,6 +624,7 @@ export async function getChildTransportInfo(studentId: string): Promise<ActionRe
     return {
       success: true,
       data: {
+        subscribed: true,
         routeName: a.route_name,
         plateNumber: a.plate_number,
         stop: {

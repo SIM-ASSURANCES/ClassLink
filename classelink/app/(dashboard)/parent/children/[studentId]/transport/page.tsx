@@ -50,6 +50,17 @@ export default async function ChildTransportPage({ params }: Props) {
             <p className="text-sm text-gray-400">Aucun transport scolaire assigné pour cet enfant.</p>
             <p className="text-xs text-gray-400 mt-1">Contactez l&apos;administration de l&apos;école.</p>
           </div>
+        ) : !transport.subscribed ? (
+          <div className="bg-amber-50 rounded-xl border border-dashed border-amber-300 py-16 text-center px-6">
+            <p className="text-sm font-semibold text-amber-800">Abonnement transport requis</p>
+            <p className="text-xs text-amber-700 mt-1">
+              {transport.routeName} — {transport.stop?.name}
+            </p>
+            <p className="text-xs text-amber-600 mt-3 max-w-sm mx-auto">
+              Le suivi en direct du car et les informations du chauffeur ne sont disponibles
+              qu&apos;une fois l&apos;abonnement transport souscrit auprès de l&apos;administration de l&apos;école.
+            </p>
+          </div>
         ) : (
           <TransportLiveView studentId={studentId} initialData={transport} />
         )}

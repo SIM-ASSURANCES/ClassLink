@@ -65,6 +65,36 @@ class _TransportScreenState extends ConsumerState<TransportScreen> {
                 ),
               );
             }
+            if (transport['subscribed'] == false) {
+              final stop = transport['stop'] as Map<String, dynamic>?;
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.lock_clock_rounded, color: AppTheme.warning, size: 36),
+                      const SizedBox(height: 10),
+                      const Text('Abonnement transport requis',
+                        style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textMain)),
+                      if (stop?['name'] != null) ...[
+                        const SizedBox(height: 4),
+                        Text('${transport['routeName'] ?? ''} — ${stop!['name']}',
+                          style: const TextStyle(fontSize: 12, color: AppTheme.textSub)),
+                      ],
+                      const SizedBox(height: 10),
+                      const Text(
+                        "Le suivi en direct du car et les informations du chauffeur ne sont "
+                        "disponibles qu'une fois l'abonnement transport souscrit auprès de "
+                        "l'administration de l'école.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12, color: AppTheme.textSub),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
             return _TransportContent(transport: transport);
           },
         ),

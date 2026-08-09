@@ -946,6 +946,25 @@ CREATE TABLE IF NOT EXISTS student_transport (
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Abonnement transport (paiement), indépendant de l'affectation à un arrêt —
+-- voir actions/transport.ts::getChildTransportInfo : le parent ne voit la
+-- carte en direct et les infos chauffeur que si l'élève est à la fois
+-- affecté (student_transport) ET abonné actif (bus_subscriptions).
+CREATE TABLE IF NOT EXISTS bus_subscriptions (
+  id                TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  student_id        TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  academic_year_id  TEXT REFERENCES academic_years(id),
+  start_date        DATE NOT NULL,
+  end_date          DATE,
+  amount_paid       NUMERIC(10,2) DEFAULT 0,
+  status            TEXT NOT NULL DEFAULT 'ACTIVE'
+                    CHECK (status IN ('ACTIVE','SUSPENDED','CANCELLED')),
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(student_id, academic_year_id)
+);
+CREATE INDEX IF NOT EXISTS idx_bus_sub_student ON bus_subscriptions(student_id);
+
 CREATE TABLE IF NOT EXISTS bus_trips (
   id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   route_id    TEXT NOT NULL REFERENCES bus_routes(id),

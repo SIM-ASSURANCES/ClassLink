@@ -35,6 +35,28 @@ export const GET = withMobileAuth(['PARENT'], async (req, { user, tenantDb }) =>
   if (!assignment[0]) return NextResponse.json({ transport: null })
   const a = assignment[0]
 
+  const subRows: any[] = await tenantDb.$queryRaw`
+    SELECT status FROM bus_subscriptions
+    WHERE student_id = ${studentId}
+      AND academic_year_id = (SELECT id FROM academic_years WHERE is_current = TRUE LIMIT 1)
+    LIMIT 1
+  `
+  const subscribed = subRows[0]?.status === 'ACTIVE'
+
+  if (!subscribed) {
+    return NextResponse.json({
+      transport: {
+        subscribed: false,
+        routeName: a.route_name,
+        stop: {
+          name: a.stop_name,
+          morningPickupTime: a.morning_pickup_time,
+          afternoonDropoffTime: a.afternoon_dropoff_time,
+        },
+      },
+    })
+  }
+
   const trips: any[] = await tenantDb.$queryRaw`
     SELECT id, direction, status, started_at
     FROM bus_trips
@@ -55,6 +77,7 @@ export const GET = withMobileAuth(['PARENT'], async (req, { user, tenantDb }) =>
 
   return NextResponse.json({
     transport: {
+      subscribed: true,
       routeName: a.route_name,
       plateNumber: a.plate_number,
       stop: {
