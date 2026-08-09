@@ -20,7 +20,7 @@ export function BusesTab({ buses, setBuses }: { buses: Bus[]; setBuses: (b: Bus[
     startTransition(async () => {
       const result = await createBus(plate, capacity ? parseInt(capacity, 10) : null)
       if (!result.success) { setError(result.error); return }
-      setBuses([...buses, { id: 'temp-' + Date.now(), plate_number: plate, capacity: capacity ? parseInt(capacity, 10) : null, route_id: null, route_name: null }])
+      setBuses([...buses, { id: result.data!.id, plate_number: plate, capacity: capacity ? parseInt(capacity, 10) : null, route_id: null, route_name: null }])
       setPlate(''); setCapacity('')
     })
   }

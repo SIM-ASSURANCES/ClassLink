@@ -28,6 +28,9 @@ function dbError(e: any): string {
   if (e?.code === '23505' || e?.message?.includes('23505')) {
     return 'Cette adresse email est déjà utilisée.'
   }
+  if (e?.code === '23503' || e?.message?.includes('23503')) {
+    return 'Le bus, chauffeur ou arrêt sélectionné n\'existe plus — rafraîchissez la page et réessayez.'
+  }
   return e?.message ?? 'Une erreur est survenue.'
 }
 
@@ -53,7 +56,7 @@ export async function getDrivers(): Promise<ActionResult<any[]>> {
 export async function createDriver(
   _prev: ActionResult | null,
   formData: FormData
-): Promise<ActionResult<{ tempPassword: string }>> {
+): Promise<ActionResult<{ id: string; tempPassword: string }>> {
   try {
     const { db } = await getAdminDb()
     const firstName = (formData.get('firstName') as string)?.trim()
@@ -68,13 +71,14 @@ export async function createDriver(
     const tempPassword = nanoid(12)
     const passwordHash = await hash(tempPassword, 12)
 
-    await db.$executeRaw`
+    const rows: any[] = await db.$queryRaw`
       INSERT INTO users (email, password_hash, first_name, last_name, phone, role, email_verified)
       VALUES (${email}, ${passwordHash}, ${firstName}, ${lastName}, ${phone}, 'DRIVER', TRUE)
+      RETURNING id
     `
 
     revalidatePath('/admin/transport')
-    return { success: true, data: { tempPassword } }
+    return { success: true, data: { id: rows[0].id, tempPassword } }
   } catch (e: any) {
     return { success: false, error: dbError(e) }
   }
@@ -139,15 +143,16 @@ export async function getBuses(): Promise<ActionResult<any[]>> {
   }
 }
 
-export async function createBus(plateNumber: string, capacity: number | null): Promise<ActionResult> {
+export async function createBus(plateNumber: string, capacity: number | null): Promise<ActionResult<{ id: string }>> {
   try {
     const { db } = await getAdminDb()
     if (!plateNumber.trim()) return { success: false, error: 'Immatriculation requise.' }
-    await db.$executeRaw`
+    const rows: any[] = await db.$queryRaw`
       INSERT INTO bus_vehicles (plate_number, capacity) VALUES (${plateNumber.trim()}, ${capacity})
+      RETURNING id
     `
     revalidatePath('/admin/transport')
-    return { success: true, data: undefined }
+    return { success: true, data: { id: rows[0].id } }
   } catch (e: any) {
     return { success: false, error: dbError(e) }
   }
@@ -245,7 +250,7 @@ export async function deleteRoute(routeId: string): Promise<ActionResult> {
 export async function addStop(
   routeId: string,
   data: { name: string; latitude: number; longitude: number; morningPickupTime: string | null; afternoonDropoffTime: string | null }
-): Promise<ActionResult> {
+): Promise<ActionResult<{ id: string }>> {
   try {
     const { db } = await getAdminDb()
     if (!data.name.trim()) return { success: false, error: 'Nom de l\'arrêt requis.' }
@@ -253,13 +258,14 @@ export async function addStop(
     const existing: any[] = await db.$queryRaw`
       SELECT COALESCE(MAX(stop_order), 0) + 1 AS next_order FROM bus_route_stops WHERE route_id = ${routeId}
     `
-    await db.$executeRaw`
+    const rows: any[] = await db.$queryRaw`
       INSERT INTO bus_route_stops (route_id, stop_order, name, latitude, longitude, morning_pickup_time, afternoon_dropoff_time)
       VALUES (${routeId}, ${existing[0].next_order}, ${data.name.trim()}, ${data.latitude}, ${data.longitude},
               ${data.morningPickupTime}, ${data.afternoonDropoffTime})
+      RETURNING id
     `
     revalidatePath('/admin/transport')
-    return { success: true, data: undefined }
+    return { success: true, data: { id: rows[0].id } }
   } catch (e: any) {
     return { success: false, error: dbError(e) }
   }

@@ -149,7 +149,7 @@ function RouteStopsEditor({ route, routes, setRoutes }: { route: Route; routes: 
       updateRoute({
         ...route,
         stops: [...route.stops, {
-          id: 'temp-' + Date.now(), stop_order: route.stops.length + 1, name: stopName,
+          id: result.data!.id, stop_order: route.stops.length + 1, name: stopName,
           latitude: pickedLatLng.lat, longitude: pickedLatLng.lng,
           morning_pickup_time: morningTime || null, afternoon_dropoff_time: afternoonTime || null,
         }],

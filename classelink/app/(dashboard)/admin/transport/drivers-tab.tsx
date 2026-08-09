@@ -26,7 +26,7 @@ export function DriversTab({ drivers, setDrivers }: { drivers: Driver[]; setDriv
       setTempPassword(result.data!.tempPassword)
       formRef.current?.reset()
       setDrivers([...drivers, {
-        id: 'temp-' + Date.now(),
+        id: result.data!.id,
         first_name: formData.get('firstName') as string,
         last_name: formData.get('lastName') as string,
         email: formData.get('email') as string,
