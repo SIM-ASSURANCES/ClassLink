@@ -897,8 +897,11 @@ async function ensureSuperAdminPermissionColumn() {
   await (publicPrisma as any).$executeRawUnsafe(
     `ALTER TABLE super_admin_users ADD COLUMN IF NOT EXISTS permission TEXT NOT NULL DEFAULT 'BOTH'`
   )
+  // Guillemets obligatoires : sans eux Postgres replie l'identifiant en minuscules
+  // ("created_by"), alors que le Prisma Client (colonnes non @map) attend la casse
+  // exacte du nom de champ ("createdBy") — d'où l'erreur "column ... does not exist".
   await (publicPrisma as any).$executeRawUnsafe(
-    `ALTER TABLE super_admin_users ADD COLUMN IF NOT EXISTS created_by TEXT`
+    `ALTER TABLE super_admin_users ADD COLUMN IF NOT EXISTS "createdBy" TEXT`
   )
 }
 
