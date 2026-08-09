@@ -21,6 +21,7 @@ export const PARENT_FEATURES = [
   { key: 'summary',     label: 'Aperçu (résumé hebdomadaire)' },
   { key: 'liaison',     label: 'Carnet de liaison' },
   { key: 'appointments', label: 'Rendez-vous enseignants' },
+  { key: 'transport',    label: 'Transport scolaire' },
 ] as const
 
 export type ParentFeatureKey = (typeof PARENT_FEATURES)[number]['key']

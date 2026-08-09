@@ -13,6 +13,7 @@ const REDIRECT_MAP: Record<string, string> = {
   TEACHER: '/teacher',
   PARENT: '/parent',
   STUDENT: '/student',
+  DRIVER: '/driver',
 }
 
 export default async function RootPage() {

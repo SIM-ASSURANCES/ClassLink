@@ -13,6 +13,7 @@ const TABS = [
   { href: '/liaison',          label: 'Carnet de liaison' },
   { href: '/agenda',           label: 'Agenda'           },
   { href: '/resume',           label: 'Résumé'           },
+  { href: '/transport',        label: 'Transport'        },
 ]
 
 export function ChildTabs({ studentId }: { studentId: string }) {

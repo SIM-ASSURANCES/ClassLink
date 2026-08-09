@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
   last_name        TEXT NOT NULL,
   phone            TEXT,
   avatar_url       TEXT,
-  role             TEXT NOT NULL CHECK (role IN ('ADMIN','CENSOR','ACCOUNTANT','TEACHER','PARENT','STUDENT','STAFF')),
+  role             TEXT NOT NULL CHECK (role IN ('ADMIN','CENSOR','ACCOUNTANT','TEACHER','PARENT','STUDENT','STAFF','DRIVER')),
   is_active        BOOLEAN DEFAULT TRUE,
   email_verified   BOOLEAN DEFAULT FALSE,
   two_factor_enabled BOOLEAN DEFAULT FALSE,
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Étend la contrainte de rôle pour les écoles existantes et ajoute les colonnes.
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check
-  CHECK (role IN ('ADMIN','CENSOR','ACCOUNTANT','TEACHER','PARENT','STUDENT','STAFF'));
+  CHECK (role IN ('ADMIN','CENSOR','ACCOUNTANT','TEACHER','PARENT','STUDENT','STAFF','DRIVER'));
 ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title       TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_modules TEXT[] DEFAULT '{}';
 
@@ -898,3 +898,66 @@ CREATE TABLE IF NOT EXISTS check_ins (
 );
 CREATE INDEX IF NOT EXISTS idx_checkins_student    ON check_ins(student_id);
 CREATE INDEX IF NOT EXISTS idx_checkins_scanned_at ON check_ins(scanned_at);
+
+-- ─── Transport scolaire (ramassage/dépose en car) ───────────────────────────
+-- Le chauffeur (role DRIVER sur `users` — nom/photo/téléphone déjà présents
+-- sur cette table, pas besoin d'un profil dédié) démarre un trajet depuis son
+-- espace web, qui envoie sa position GPS (navigateur du téléphone) toutes les
+-- ~15s pendant que le trajet est actif. Les parents suivent la dernière
+-- position connue par sondage (voir actions/transport.ts).
+CREATE TABLE IF NOT EXISTS bus_vehicles (
+  id           TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  plate_number TEXT NOT NULL,
+  capacity     INT,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bus_routes (
+  id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  name        TEXT NOT NULL,
+  bus_id      TEXT REFERENCES bus_vehicles(id),
+  driver_id   TEXT REFERENCES users(id),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bus_route_stops (
+  id                     TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  route_id               TEXT NOT NULL REFERENCES bus_routes(id) ON DELETE CASCADE,
+  stop_order             INT NOT NULL,
+  name                   TEXT NOT NULL,
+  latitude               NUMERIC(10,7) NOT NULL,
+  longitude              NUMERIC(10,7) NOT NULL,
+  morning_pickup_time    TIME,
+  afternoon_dropoff_time TIME,
+  UNIQUE(route_id, stop_order)
+);
+CREATE INDEX IF NOT EXISTS idx_bus_stops_route ON bus_route_stops(route_id);
+
+-- Un élève est rattaché à un seul arrêt/itinéraire à la fois.
+CREATE TABLE IF NOT EXISTS student_transport (
+  id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  student_id  TEXT NOT NULL UNIQUE REFERENCES students(id),
+  route_id    TEXT NOT NULL REFERENCES bus_routes(id),
+  stop_id     TEXT NOT NULL REFERENCES bus_route_stops(id),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bus_trips (
+  id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  route_id    TEXT NOT NULL REFERENCES bus_routes(id),
+  direction   TEXT NOT NULL CHECK (direction IN ('MORNING','AFTERNOON')),
+  trip_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+  status      TEXT NOT NULL DEFAULT 'IN_PROGRESS' CHECK (status IN ('IN_PROGRESS','COMPLETED')),
+  started_at  TIMESTAMPTZ DEFAULT NOW(),
+  ended_at    TIMESTAMPTZ,
+  UNIQUE(route_id, direction, trip_date)
+);
+
+CREATE TABLE IF NOT EXISTS bus_locations (
+  id          BIGSERIAL PRIMARY KEY,
+  trip_id     TEXT NOT NULL REFERENCES bus_trips(id) ON DELETE CASCADE,
+  latitude    NUMERIC(10,7) NOT NULL,
+  longitude   NUMERIC(10,7) NOT NULL,
+  recorded_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_bus_locations_trip ON bus_locations(trip_id, recorded_at DESC);

@@ -68,6 +68,10 @@ class ChildDetailScreen extends ConsumerWidget {
             icon: Icons.event_available_rounded, label: 'Rendez-vous enseignants', color: const Color(0xFF0D9488),
             onTap: () => context.push('/parent/child/$studentId/appointments'),
           ),
+          _ActionTile(
+            icon: Icons.directions_bus_filled_rounded, label: 'Transport scolaire', color: const Color(0xFF1800AD),
+            onTap: () => context.push('/parent/child/$studentId/transport'),
+          ),
 
           const SizedBox(height: 20),
           const Text('Résumé des absences', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.textMain)),

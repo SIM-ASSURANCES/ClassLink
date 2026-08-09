@@ -28,6 +28,7 @@ class ApiConstants {
   static const String appointmentSlots    = '/api/mobile/parent/appointments/slots';
   static const String appointments        = '/api/mobile/parent/appointments';
   static const String appointmentsCancel  = '/api/mobile/parent/appointments/cancel';
+  static const String transport           = '/api/mobile/parent/transport';
 
   static String paymentInitiate(String paymentId) =>
       '/api/mobile/payments/$paymentId/initiate';

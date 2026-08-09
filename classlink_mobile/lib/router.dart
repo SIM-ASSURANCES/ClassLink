@@ -24,6 +24,7 @@ import 'features/sanctions/sanctions_screen.dart';
 import 'features/summary/summary_screen.dart';
 import 'features/appointments/appointments_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/transport/transport_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
@@ -164,6 +165,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/parent/child/:studentId/appointments',
         builder: (context, state) => AppointmentsScreen(
+          studentId: state.pathParameters['studentId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/parent/child/:studentId/transport',
+        builder: (context, state) => TransportScreen(
           studentId: state.pathParameters['studentId']!,
         ),
       ),

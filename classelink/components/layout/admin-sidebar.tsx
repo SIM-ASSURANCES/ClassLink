@@ -337,6 +337,18 @@ const NAV: NavItem[] = [
     ),
   },
   {
+    label: 'Transport',
+    href: '/admin/transport',
+    category: 'Vie scolaire',
+    roles: ['ADMIN', 'CENSOR'],
+    icon: (
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M8 17h8m-8 0a2 2 0 11-4 0 2 2 0 014 0zm8 0a2 2 0 104 0 2 2 0 00-4 0zM5 17V8a2 2 0 012-2h10a2 2 0 012 2v9M5 17h14M5 11h14" />
+      </svg>
+    ),
+  },
+  {
     label: 'Alertes',
     href: '/admin/alerts',
     category: 'Vie scolaire',
