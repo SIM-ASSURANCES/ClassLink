@@ -122,3 +122,39 @@ export async function requireRole(...roles: Role[]) {
   if (!roles.includes(session.user.role)) throw new ForbiddenError()
   return session
 }
+
+// ─── Permissions des super admins collaborateurs (READ / EDIT / BOTH) ────────
+export type SuperAdminPermission = 'READ' | 'EDIT' | 'BOTH'
+
+// Lecture défensive : si la colonne "permission" n'existe pas encore en base
+// (déploiement pas encore migré), on considère l'accès complet (BOTH) pour ne
+// jamais casser le compte super admin historique. La colonne est créée par
+// getSuperAdminUsers()/createSuperAdminUser() dans actions/super-admin.ts.
+async function getSuperAdminPermission(userId: string): Promise<SuperAdminPermission> {
+  try {
+    const { publicPrisma } = await import('@/lib/db/public')
+    const rows = await publicPrisma.$queryRawUnsafe<{ permission: SuperAdminPermission }[]>(
+      `SELECT permission FROM super_admin_users WHERE id = $1 LIMIT 1`,
+      userId
+    )
+    return rows[0]?.permission ?? 'BOTH'
+  } catch {
+    return 'BOTH'
+  }
+}
+
+// SUPER_ADMIN + droit d'écriture (EDIT ou BOTH) — bloque les collaborateurs en lecture seule.
+export async function requireSuperAdminWrite() {
+  const session = await requireRole('SUPER_ADMIN')
+  const permission = await getSuperAdminPermission(session.user.id!)
+  if (permission === 'READ') throw new ForbiddenError('Accès en lecture seule : action non autorisée')
+  return session
+}
+
+// Seuls les super admins en accès complet (BOTH) peuvent gérer d'autres comptes super admin.
+export async function requireSuperAdminOwner() {
+  const session = await requireRole('SUPER_ADMIN')
+  const permission = await getSuperAdminPermission(session.user.id!)
+  if (permission !== 'BOTH') throw new ForbiddenError('Seuls les administrateurs à accès complet peuvent gérer les collaborateurs')
+  return session
+}

@@ -127,6 +127,10 @@ model SuperAdminUser {
   firstName    String
   lastName     String
   isActive     Boolean   @default(true)
+  // Droits d'un collaborateur super admin : READ (lecture seule), EDIT ou BOTH (accès complet,
+  // seul niveau pouvant gérer d'autres comptes super admin). Voir lib/auth/rbac.ts.
+  permission   String    @default("BOTH")
+  createdBy    String?
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

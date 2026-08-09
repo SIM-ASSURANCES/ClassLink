@@ -11,7 +11,7 @@ import { hash } from 'bcryptjs'
 import { z } from 'zod'
 import { publicPrisma } from '@/lib/db/public'
 import { createTenantSchema, dropTenantSchema, getTenantPrisma } from '@/lib/db/tenant'
-import { requireRole } from '@/lib/auth/rbac'
+import { requireRole, requireSuperAdminWrite, requireSuperAdminOwner } from '@/lib/auth/rbac'
 import { toActionError } from '@/lib/errors'
 import type { ActionResult, PaginatedResult } from '@/types'
 import { readFileSync } from 'fs'
@@ -21,6 +21,21 @@ import { PARENT_FEATURES, type FeatureOverride } from '@/lib/parent-feature-flag
 import { getFeatureOverrides, notifyAllParentsFeatureFlagsChanged } from '@/lib/parent-feature-flags.server'
 
 const db = publicPrisma as any
+
+// requireSuperAdminWrite() est appelé avant les blocs try/catch de chaque action —
+// ce helper convertit le rejet (ForbiddenError) en résultat normal plutôt qu'en
+// exception non capturée, pour que le message s'affiche via le flash existant
+// au lieu de faire planter la Server Action.
+async function guardWrite(): Promise<
+  { ok: true; session: Awaited<ReturnType<typeof requireSuperAdminWrite>> } | { ok: false; error: string }
+> {
+  try {
+    const session = await requireSuperAdminWrite()
+    return { ok: true, session }
+  } catch (error) {
+    return { ok: false, error: toActionError(error) }
+  }
+}
 
 // ─── Schémas de validation ────────────────────────────────────────────────────
 const createSchoolSchema = z.object({
@@ -157,7 +172,8 @@ export async function createSchool(
   prevState: ActionResult<{ schoolId: string; slug: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ schoolId: string; slug: string }>> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
 
   const parsed = createSchoolSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
@@ -253,7 +269,8 @@ export async function updateSchool(
   prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
 
   const parsed = updateSchoolSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
@@ -278,7 +295,8 @@ export async function updateSchool(
 
 // ─── Suspendre / Activer une école ────────────────────────────────────────────
 export async function toggleSchoolStatus(schoolId: string, suspend: boolean): Promise<void> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return
 
   try {
     await db.school.update({
@@ -303,7 +321,8 @@ export async function toggleSchoolStatus(schoolId: string, suspend: boolean): Pr
 
 // ─── Prolonger la période d'essai ─────────────────────────────────────────────
 export async function extendTrial(schoolId: string, days: number): Promise<void> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return
 
   try {
     const school = await db.school.findUnique({ where: { id: schoolId } })
@@ -327,7 +346,8 @@ export async function extendTrial(schoolId: string, days: number): Promise<void>
 
 // ─── Supprimer un établissement ───────────────────────────────────────────────
 export async function deleteSchool(schoolId: string): Promise<ActionResult> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
   try {
     const school = await db.school.findUnique({
       where: { id: schoolId },
@@ -371,7 +391,8 @@ export async function createPlan(
   prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
   const parsed = planSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
   try {
@@ -389,7 +410,8 @@ export async function updatePlan(
   prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
   const id = formData.get('id') as string
   const parsed = planSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
@@ -405,7 +427,8 @@ export async function updatePlan(
 }
 
 export async function togglePlanActive(planId: string, isActive: boolean): Promise<ActionResult> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
   try {
     await db.plan.update({ where: { id: planId }, data: { isActive } })
     revalidatePath('/super-admin/plans')
@@ -416,7 +439,8 @@ export async function togglePlanActive(planId: string, isActive: boolean): Promi
 }
 
 export async function deletePlan(planId: string): Promise<ActionResult> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
   try {
     const count = await db.school.count({ where: { planId } })
     if (count > 0) {
@@ -483,7 +507,8 @@ export async function getSubscriptionStats() {
 }
 
 export async function backfillMissingSubscriptions(): Promise<ActionResult<{ created: number }>> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
   try {
     // Récupère toutes les écoles sans abonnement
     const schools = await db.school.findMany({
@@ -518,7 +543,8 @@ export async function updateSubscription(
   prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
   const id = formData.get('id') as string
   try {
     const data: any = {}
@@ -546,7 +572,8 @@ export async function recordManualPayment(
   prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
   try {
     const subscriptionId = formData.get('subscriptionId') as string
     const amount         = parseFloat(formData.get('amount')      as string)
@@ -667,7 +694,8 @@ export async function getMonitoringData() {
 
 // ─── Réparer le schéma tenant (si les tables n'ont pas été créées) ────────────
 export async function repairTenantSchema(schoolId: string): Promise<ActionResult> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
 
   try {
     const school = await db.school.findUnique({ where: { id: schoolId } })
@@ -707,7 +735,8 @@ export async function repairTenantSchema(schoolId: string): Promise<ActionResult
 
 // ─── Migrer toutes les écoles (ré-applique le DDL idempotent à chaque schéma) ──
 export async function migrateAllTenants(): Promise<ActionResult<{ migrated: number; failed: string[] }>> {
-  await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
 
   try {
     const sqlPath = join(process.cwd(), 'prisma', 'tenant-schema.sql')
@@ -761,7 +790,9 @@ export async function setParentFeatureOverride(
   key: string,
   override: FeatureOverride
 ): Promise<ActionResult> {
-  const session = await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
+  const session = guard.session
   try {
     if (override === null) {
       await db.parentFeatureFlag.deleteMany({ where: { key } })
@@ -782,7 +813,9 @@ export async function setParentFeatureOverride(
 
 /** Applique le même override à toutes les fonctionnalités d'un coup ("Tout verrouiller" / "Tout déverrouiller" / "Réinitialiser"). */
 export async function bulkSetParentFeatureOverride(override: FeatureOverride): Promise<ActionResult> {
-  const session = await requireRole('SUPER_ADMIN')
+  const guard = await guardWrite()
+  if (!guard.ok) return { success: false, error: guard.error }
+  const session = guard.session
   try {
     if (override === null) {
       await db.parentFeatureFlag.deleteMany({})
@@ -851,6 +884,141 @@ export async function getAllParents(): Promise<ActionResult<any[]>> {
     }
 
     return { success: true, data: results }
+  } catch (error) {
+    return { success: false, error: toActionError(error) }
+  }
+}
+
+// ─── Collaborateurs super admin (accès READ / EDIT / BOTH) ───────────────────
+// La colonne "permission" peut ne pas encore exister en base juste après un
+// déploiement (prisma db push n'est pas automatique) — on la crée ici de façon
+// idempotente, au premier appel touchant cette fonctionnalité.
+async function ensureSuperAdminPermissionColumn() {
+  await (publicPrisma as any).$executeRawUnsafe(
+    `ALTER TABLE super_admin_users ADD COLUMN IF NOT EXISTS permission TEXT NOT NULL DEFAULT 'BOTH'`
+  )
+  await (publicPrisma as any).$executeRawUnsafe(
+    `ALTER TABLE super_admin_users ADD COLUMN IF NOT EXISTS created_by TEXT`
+  )
+}
+
+const superAdminUserSchema = z.object({
+  email:     z.string().email('Email invalide'),
+  firstName: z.string().min(2, 'Prénom requis'),
+  lastName:  z.string().min(2, 'Nom requis'),
+  password:  z.string().min(8, 'Mot de passe minimum 8 caractères'),
+  permission: z.enum(['READ', 'EDIT', 'BOTH']),
+})
+
+// Nombre de comptes actifs en accès complet — sert à empêcher un verrouillage total.
+async function countActiveOwners(excludeId?: string): Promise<number> {
+  return db.superAdminUser.count({
+    where: {
+      isActive: true,
+      permission: 'BOTH',
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+  })
+}
+
+export async function getSuperAdminUsers(): Promise<ActionResult<any[]>> {
+  await requireRole('SUPER_ADMIN')
+  try {
+    await ensureSuperAdminPermissionColumn()
+    const users = await db.superAdminUser.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true, email: true, firstName: true, lastName: true,
+        isActive: true, permission: true, createdBy: true,
+        lastLoginAt: true, createdAt: true,
+      },
+    })
+    return { success: true, data: users }
+  } catch (error) {
+    return { success: false, error: toActionError(error) }
+  }
+}
+
+export async function createSuperAdminUser(
+  prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const session = await requireSuperAdminOwner()
+  const parsed = superAdminUserSchema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
+
+  try {
+    await ensureSuperAdminPermissionColumn()
+
+    const existing = await db.superAdminUser.findUnique({ where: { email: parsed.data.email } })
+    if (existing) return { success: false, error: 'Un compte existe déjà avec cet email.' }
+
+    const passwordHash = await hash(parsed.data.password, 12)
+    await db.superAdminUser.create({
+      data: {
+        email:       parsed.data.email,
+        firstName:   parsed.data.firstName,
+        lastName:    parsed.data.lastName,
+        passwordHash,
+        permission:  parsed.data.permission,
+        createdBy:   session.user.email,
+      },
+    })
+
+    revalidatePath('/super-admin/team')
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: toActionError(error) }
+  }
+}
+
+export async function updateSuperAdminPermission(
+  id: string,
+  permission: 'READ' | 'EDIT' | 'BOTH'
+): Promise<ActionResult> {
+  const session = await requireSuperAdminOwner()
+  try {
+    await ensureSuperAdminPermissionColumn()
+
+    const target = await db.superAdminUser.findUnique({ where: { id } })
+    if (!target) return { success: false, error: 'Compte introuvable.' }
+
+    if (target.permission === 'BOTH' && permission !== 'BOTH') {
+      const remaining = await countActiveOwners(id)
+      if (remaining === 0) {
+        return { success: false, error: 'Impossible : au moins un administrateur à accès complet doit rester actif.' }
+      }
+    }
+
+    await db.superAdminUser.update({ where: { id }, data: { permission } })
+    revalidatePath('/super-admin/team')
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: toActionError(error) }
+  }
+}
+
+export async function toggleSuperAdminActive(id: string, isActive: boolean): Promise<ActionResult> {
+  const session = await requireSuperAdminOwner()
+  if (id === session.user.id && !isActive) {
+    return { success: false, error: 'Vous ne pouvez pas désactiver votre propre compte.' }
+  }
+  try {
+    await ensureSuperAdminPermissionColumn()
+
+    const target = await db.superAdminUser.findUnique({ where: { id } })
+    if (!target) return { success: false, error: 'Compte introuvable.' }
+
+    if (!isActive && target.permission === 'BOTH') {
+      const remaining = await countActiveOwners(id)
+      if (remaining === 0) {
+        return { success: false, error: 'Impossible : au moins un administrateur à accès complet doit rester actif.' }
+      }
+    }
+
+    await db.superAdminUser.update({ where: { id }, data: { isActive } })
+    revalidatePath('/super-admin/team')
+    return { success: true }
   } catch (error) {
     return { success: false, error: toActionError(error) }
   }
