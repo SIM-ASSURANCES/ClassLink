@@ -7,6 +7,7 @@ import { requireRole } from '@/lib/auth/rbac'
 import { getTenantPrisma } from '@/lib/db/tenant'
 import { uploadFile } from '@/lib/storage/r2'
 import { notifyUser } from '@/lib/notifications/create'
+import { initiateSchoolPayment } from '@/lib/payments/provider'
 import type { ActionResult } from '@/types'
 
 async function getAdminDb() {
@@ -38,7 +39,12 @@ async function ensureBusSubscriptionsTable(db: any) {
       end_date          DATE,
       amount_paid       NUMERIC(10,2) DEFAULT 0,
       status            TEXT NOT NULL DEFAULT 'ACTIVE'
-                        CHECK (status IN ('ACTIVE','SUSPENDED','CANCELLED')),
+                        CHECK (status IN ('PENDING_PAYMENT','ACTIVE','SUSPENDED','CANCELLED')),
+      payment_status    TEXT NOT NULL DEFAULT 'MANUAL'
+                        CHECK (payment_status IN ('MANUAL','PENDING','PAID','FAILED')),
+      provider          TEXT,
+      provider_ref      TEXT,
+      paid_at           TIMESTAMPTZ,
       created_at        TIMESTAMPTZ DEFAULT NOW(),
       updated_at        TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(student_id, academic_year_id)
@@ -47,6 +53,13 @@ async function ensureBusSubscriptionsTable(db: any) {
   await db.$executeRawUnsafe(
     `CREATE INDEX IF NOT EXISTS idx_bus_sub_student ON bus_subscriptions(student_id)`
   )
+  // Élargissement pour paiement en ligne parent — idempotent si déjà appliqué.
+  await db.$executeRawUnsafe(`ALTER TABLE bus_subscriptions DROP CONSTRAINT IF EXISTS bus_subscriptions_status_check`)
+  await db.$executeRawUnsafe(`ALTER TABLE bus_subscriptions ADD CONSTRAINT bus_subscriptions_status_check CHECK (status IN ('PENDING_PAYMENT','ACTIVE','SUSPENDED','CANCELLED'))`)
+  await db.$executeRawUnsafe(`ALTER TABLE bus_subscriptions ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'MANUAL' CHECK (payment_status IN ('MANUAL','PENDING','PAID','FAILED'))`)
+  await db.$executeRawUnsafe(`ALTER TABLE bus_subscriptions ADD COLUMN IF NOT EXISTS provider TEXT`)
+  await db.$executeRawUnsafe(`ALTER TABLE bus_subscriptions ADD COLUMN IF NOT EXISTS provider_ref TEXT`)
+  await db.$executeRawUnsafe(`ALTER TABLE bus_subscriptions ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ`)
 }
 
 function dbError(e: any): string {
@@ -405,6 +418,77 @@ export async function updateBusSubscriptionStatus(subId: string, status: string)
   }
 }
 
+/**
+ * Le parent s'abonne lui-même au transport et paie en ligne (tarif fixe
+ * configuré par l'admin dans les paramètres de l'établissement). Crée/réutilise
+ * la ligne d'abonnement en statut PENDING_PAYMENT, initie la transaction auprès
+ * du PSP de l'école, et renvoie l'URL de paiement vers laquelle rediriger le
+ * parent. La ligne passe à ACTIVE/PAID via le webhook une fois le paiement
+ * confirmé (voir app/api/webhooks/geniuspay et cinetpay).
+ */
+export async function initiateTransportSubscriptionPayment(studentId: string): Promise<ActionResult<{ paymentUrl: string }>> {
+  try {
+    const { db, session } = await getParentDb()
+    await ensureBusSubscriptionsTable(db)
+
+    const check: any[] = await db.$queryRaw`
+      SELECT ps.id FROM parent_students ps
+      JOIN parents p ON p.id = ps.parent_id
+      WHERE p.user_id = ${session.user.id} AND ps.student_id = ${studentId}
+      LIMIT 1
+    `
+    if (!check[0]) return { success: false, error: 'Accès non autorisé.' }
+
+    const settingsRows: any[] = await db.$queryRaw`SELECT transport_monthly_price FROM school_settings LIMIT 1`
+    const price = settingsRows[0]?.transport_monthly_price
+    if (price === null || price === undefined) {
+      return { success: false, error: 'Le tarif du transport n\'a pas encore été configuré par l\'établissement.' }
+    }
+
+    const yearRows: any[] = await db.$queryRaw`SELECT id FROM academic_years WHERE is_current = TRUE LIMIT 1`
+    const academicYearId = yearRows[0]?.id
+    if (!academicYearId) return { success: false, error: 'Aucune année académique courante trouvée.' }
+
+    const existing: any[] = await db.$queryRaw`
+      SELECT status FROM bus_subscriptions WHERE student_id = ${studentId} AND academic_year_id = ${academicYearId} LIMIT 1
+    `
+    if (existing[0]?.status === 'ACTIVE') {
+      return { success: false, error: 'Cet élève est déjà abonné au transport.' }
+    }
+
+    const rows: any[] = await db.$queryRaw`
+      INSERT INTO bus_subscriptions (student_id, academic_year_id, start_date, amount_paid, status, payment_status)
+      VALUES (${studentId}, ${academicYearId}, CURRENT_DATE, ${price}, 'PENDING_PAYMENT', 'PENDING')
+      ON CONFLICT (student_id, academic_year_id) DO UPDATE
+        SET amount_paid = EXCLUDED.amount_paid, status = 'PENDING_PAYMENT', payment_status = 'PENDING', updated_at = NOW()
+      RETURNING id
+    `
+    const subscriptionId = rows[0].id
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    const schemaName = session.user.schemaName
+
+    const init = await initiateSchoolPayment(schemaName, {
+      amount: Number(price),
+      description: 'Abonnement transport scolaire',
+      customerId: session.user.id,
+      customerName: session.user.name ?? session.user.email ?? '',
+      customerEmail: session.user.email ?? '',
+      returnUrl: `${baseUrl}/parent/children/${studentId}/transport?paid=pending`,
+      baseUrl,
+      metadata: { kind: 'transport_subscription', subscriptionId, schemaName, studentId },
+    })
+
+    await db.$executeRaw`
+      UPDATE bus_subscriptions SET provider = ${init.provider}, provider_ref = ${init.transactionId} WHERE id = ${subscriptionId}
+    `
+
+    return { success: true, data: { paymentUrl: init.paymentUrl } }
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? 'Erreur lors de l\'initiation du paiement.' }
+  }
+}
+
 export async function assignStudentStop(studentId: string, routeId: string, stopId: string): Promise<ActionResult> {
   try {
     const { db } = await getAdminDb()
@@ -614,17 +698,20 @@ export async function getChildTransportInfo(studentId: string): Promise<ActionRe
     const a = assignment[0]
 
     const subRows: any[] = await db.$queryRaw`
-      SELECT status FROM bus_subscriptions
+      SELECT id, status, payment_status, amount_paid FROM bus_subscriptions
       WHERE student_id = ${studentId}
         AND academic_year_id = (SELECT id FROM academic_years WHERE is_current = TRUE LIMIT 1)
       LIMIT 1
     `
-    const subscribed = subRows[0]?.status === 'ACTIVE'
+    const sub = subRows[0]
+    const subscribed = sub?.status === 'ACTIVE'
 
     // Affecté mais pas (ou plus) abonné : on renseigne l'arrêt/horaires pour le
     // message côté parent, mais pas le chauffeur ni la position (données
     // sensibles réservées aux abonnés actifs).
     if (!subscribed) {
+      const priceRows: any[] = await db.$queryRaw`SELECT transport_monthly_price FROM school_settings LIMIT 1`
+      const monthlyPrice = priceRows[0]?.transport_monthly_price
       return {
         success: true,
         data: {
@@ -635,6 +722,11 @@ export async function getChildTransportInfo(studentId: string): Promise<ActionRe
             morningPickupTime: a.morning_pickup_time,
             afternoonDropoffTime: a.afternoon_dropoff_time,
           },
+          subscription: sub ? {
+            id: sub.id, status: sub.status, paymentStatus: sub.payment_status,
+            amount: sub.amount_paid !== null ? Number(sub.amount_paid) : null,
+          } : null,
+          monthlyPrice: monthlyPrice !== null && monthlyPrice !== undefined ? Number(monthlyPrice) : null,
         },
       }
     }

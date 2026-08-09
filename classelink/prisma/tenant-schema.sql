@@ -424,6 +424,16 @@ ALTER TABLE school_settings ADD COLUMN IF NOT EXISTS payment_api_secret_enc     
 ALTER TABLE school_settings ADD COLUMN IF NOT EXISTS payment_site_id_enc        TEXT;    -- CinetPay (site_id)
 ALTER TABLE school_settings ADD COLUMN IF NOT EXISTS payment_webhook_secret_enc TEXT;
 
+-- Tarifs fixes des services payants en libre-service (transport, cantine par
+-- type de repas) — le parent voit ce prix et paie en ligne directement, voir
+-- actions/transport.ts::initiateTransportSubscriptionPayment et
+-- actions/cafeteria.ts::initiateCafeteriaSubscriptionPayment. NULL = tarif non
+-- configuré, bouton de paiement masqué côté parent.
+ALTER TABLE school_settings ADD COLUMN IF NOT EXISTS transport_monthly_price     NUMERIC(10,2);
+ALTER TABLE school_settings ADD COLUMN IF NOT EXISTS cafeteria_price_lunch       NUMERIC(10,2);
+ALTER TABLE school_settings ADD COLUMN IF NOT EXISTS cafeteria_price_snack       NUMERIC(10,2);
+ALTER TABLE school_settings ADD COLUMN IF NOT EXISTS cafeteria_price_lunch_snack NUMERIC(10,2);
+
 -- ─── Conseil de classe ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS class_councils (
   id               TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -536,19 +546,40 @@ CREATE TABLE IF NOT EXISTS cafeteria_menus (
 );
 
 CREATE TABLE IF NOT EXISTS cafeteria_subscriptions (
-  id           TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  student_id   TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  id             TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  student_id     TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   academic_year_id TEXT REFERENCES academic_years(id),
-  meal_type    TEXT NOT NULL DEFAULT 'LUNCH',
-  start_date   DATE NOT NULL,
-  end_date     DATE,
-  amount_paid  NUMERIC(10,2) DEFAULT 0,
-  status       TEXT NOT NULL DEFAULT 'ACTIVE'
-               CHECK (status IN ('ACTIVE','SUSPENDED','CANCELLED')),
-  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  meal_type      TEXT NOT NULL DEFAULT 'LUNCH',
+  start_date     DATE NOT NULL,
+  end_date       DATE,
+  amount_paid    NUMERIC(10,2) DEFAULT 0,
+  status         TEXT NOT NULL DEFAULT 'ACTIVE'
+                 CHECK (status IN ('PENDING_PAYMENT','ACTIVE','SUSPENDED','CANCELLED')),
+  -- MANUAL = encaisse hors ligne par l'admin (especes...) ; PENDING/PAID/FAILED =
+  -- paiement en ligne initie par le parent (voir actions/cafeteria.ts).
+  payment_status TEXT NOT NULL DEFAULT 'MANUAL'
+                 CHECK (payment_status IN ('MANUAL','PENDING','PAID','FAILED')),
+  provider       TEXT,
+  provider_ref   TEXT,
+  paid_at        TIMESTAMPTZ,
+  updated_at     TIMESTAMPTZ DEFAULT NOW(),
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(student_id, academic_year_id, meal_type)
 );
 CREATE INDEX IF NOT EXISTS idx_cafeteria_sub_student ON cafeteria_subscriptions(student_id);
+
+-- Élargissement pour paiement en ligne parent (colonne/contrainte ajoutées après
+-- le premier déploiement de cafeteria_subscriptions) — idempotent sur les écoles
+-- déjà en production.
+ALTER TABLE cafeteria_subscriptions DROP CONSTRAINT IF EXISTS cafeteria_subscriptions_status_check;
+ALTER TABLE cafeteria_subscriptions ADD CONSTRAINT cafeteria_subscriptions_status_check
+  CHECK (status IN ('PENDING_PAYMENT','ACTIVE','SUSPENDED','CANCELLED'));
+ALTER TABLE cafeteria_subscriptions ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'MANUAL'
+  CHECK (payment_status IN ('MANUAL','PENDING','PAID','FAILED'));
+ALTER TABLE cafeteria_subscriptions ADD COLUMN IF NOT EXISTS provider     TEXT;
+ALTER TABLE cafeteria_subscriptions ADD COLUMN IF NOT EXISTS provider_ref TEXT;
+ALTER TABLE cafeteria_subscriptions ADD COLUMN IF NOT EXISTS paid_at      TIMESTAMPTZ;
+ALTER TABLE cafeteria_subscriptions ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMPTZ DEFAULT NOW();
 
 -- ─── Ressources & Salles ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS resources (
@@ -974,12 +1005,31 @@ CREATE TABLE IF NOT EXISTS bus_subscriptions (
   end_date          DATE,
   amount_paid       NUMERIC(10,2) DEFAULT 0,
   status            TEXT NOT NULL DEFAULT 'ACTIVE'
-                    CHECK (status IN ('ACTIVE','SUSPENDED','CANCELLED')),
+                    CHECK (status IN ('PENDING_PAYMENT','ACTIVE','SUSPENDED','CANCELLED')),
+  -- MANUAL = encaisse hors ligne par l'admin (especes...) ; PENDING/PAID/FAILED =
+  -- paiement en ligne initie par le parent (voir actions/transport.ts).
+  payment_status    TEXT NOT NULL DEFAULT 'MANUAL'
+                    CHECK (payment_status IN ('MANUAL','PENDING','PAID','FAILED')),
+  provider          TEXT,
+  provider_ref      TEXT,
+  paid_at           TIMESTAMPTZ,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_at        TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(student_id, academic_year_id)
 );
 CREATE INDEX IF NOT EXISTS idx_bus_sub_student ON bus_subscriptions(student_id);
+
+-- Élargissement pour paiement en ligne parent (colonne/contrainte ajoutées après
+-- le premier déploiement de bus_subscriptions) — idempotent sur les écoles déjà
+-- en production.
+ALTER TABLE bus_subscriptions DROP CONSTRAINT IF EXISTS bus_subscriptions_status_check;
+ALTER TABLE bus_subscriptions ADD CONSTRAINT bus_subscriptions_status_check
+  CHECK (status IN ('PENDING_PAYMENT','ACTIVE','SUSPENDED','CANCELLED'));
+ALTER TABLE bus_subscriptions ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'MANUAL'
+  CHECK (payment_status IN ('MANUAL','PENDING','PAID','FAILED'));
+ALTER TABLE bus_subscriptions ADD COLUMN IF NOT EXISTS provider     TEXT;
+ALTER TABLE bus_subscriptions ADD COLUMN IF NOT EXISTS provider_ref TEXT;
+ALTER TABLE bus_subscriptions ADD COLUMN IF NOT EXISTS paid_at      TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS bus_trips (
   id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,

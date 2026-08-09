@@ -17,6 +17,16 @@ async function getDb() {
   return { db, user: session.user }
 }
 
+// Colonnes ajoutées après le premier déploiement de school_settings — voir
+// actions/transport.ts::ensureBusSubscriptionsTable pour le contexte de ce
+// pattern d'auto-création idempotente.
+async function ensureServicePriceColumns(db: any) {
+  await db.$executeRawUnsafe(`ALTER TABLE school_settings ADD COLUMN IF NOT EXISTS transport_monthly_price NUMERIC(10,2)`)
+  await db.$executeRawUnsafe(`ALTER TABLE school_settings ADD COLUMN IF NOT EXISTS cafeteria_price_lunch NUMERIC(10,2)`)
+  await db.$executeRawUnsafe(`ALTER TABLE school_settings ADD COLUMN IF NOT EXISTS cafeteria_price_snack NUMERIC(10,2)`)
+  await db.$executeRawUnsafe(`ALTER TABLE school_settings ADD COLUMN IF NOT EXISTS cafeteria_price_lunch_snack NUMERIC(10,2)`)
+}
+
 export async function getSchoolSlug(): Promise<string | null> {
   const session = await requireRole('ADMIN')
   const school = await (publicPrisma as any).school.findUnique({
@@ -29,6 +39,7 @@ export async function getSchoolSlug(): Promise<string | null> {
 // ─── Lire les paramètres de l'établissement ───────────────────────────────────
 export async function getSchoolSettings(): Promise<any> {
   const { db } = await getDb()
+  await ensureServicePriceColumns(db)
 
   const rows: any[] = await db.$queryRaw`
     SELECT
@@ -37,7 +48,9 @@ export async function getSchoolSettings(): Promise<any> {
       slogan, font_family, primary_color, secondary_color,
       payment_provider, payment_enabled,
       payment_api_key_enc, payment_api_secret_enc,
-      payment_site_id_enc, payment_webhook_secret_enc
+      payment_site_id_enc, payment_webhook_secret_enc,
+      transport_monthly_price, cafeteria_price_lunch,
+      cafeteria_price_snack, cafeteria_price_lunch_snack
     FROM school_settings
     LIMIT 1
   `
@@ -205,6 +218,54 @@ export async function savePaymentConfig(
         payment_site_id_enc        = COALESCE(${site_enc},    payment_site_id_enc),
         payment_webhook_secret_enc = COALESCE(${webhook_enc}, payment_webhook_secret_enc)
       WHERE id = ${id}
+    `
+
+    revalidatePath('/admin/settings')
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: toActionError(error) }
+  }
+}
+
+// ─── Tarifs des services payants en libre-service (transport, cantine) ───────
+export async function saveServicePrices(
+  prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const { db } = await getDb()
+  await ensureServicePriceColumns(db)
+
+  function parsePrice(field: string): number | null {
+    const raw = (formData.get(field) as string)?.trim()
+    if (!raw) return null
+    const n = parseFloat(raw)
+    if (isNaN(n) || n < 0) return NaN
+    return n
+  }
+
+  const transport    = parsePrice('transport_monthly_price')
+  const lunch        = parsePrice('cafeteria_price_lunch')
+  const snack        = parsePrice('cafeteria_price_snack')
+  const lunchSnack   = parsePrice('cafeteria_price_lunch_snack')
+
+  if ([transport, lunch, snack, lunchSnack].some(v => typeof v === 'number' && isNaN(v))) {
+    return { success: false, error: 'Tarif invalide.' }
+  }
+
+  try {
+    const existing: any[] = await db.$queryRaw`SELECT id FROM school_settings LIMIT 1`
+    if (!existing[0]) {
+      return { success: false, error: 'Enregistrez d\'abord les informations générales de l\'établissement.' }
+    }
+
+    await db.$executeRaw`
+      UPDATE school_settings
+      SET
+        transport_monthly_price     = ${transport},
+        cafeteria_price_lunch       = ${lunch},
+        cafeteria_price_snack       = ${snack},
+        cafeteria_price_lunch_snack = ${lunchSnack}
+      WHERE id = ${existing[0].id}
     `
 
     revalidatePath('/admin/settings')

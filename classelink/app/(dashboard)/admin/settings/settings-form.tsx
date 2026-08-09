@@ -2,7 +2,7 @@
 
 import { useActionState, useRef, useState } from 'react'
 import Link from 'next/link'
-import { saveSchoolSettings, savePaymentConfig } from '@/actions/settings'
+import { saveSchoolSettings, savePaymentConfig, saveServicePrices } from '@/actions/settings'
 import type { ActionResult } from '@/types'
 
 interface Props {
@@ -27,6 +27,10 @@ export function SettingsForm({ settings, subscription, schoolSlug }: Props) {
   )
   const [payState, payAction, payPending] = useActionState<ActionResult | null, FormData>(
     savePaymentConfig,
+    null
+  )
+  const [pricesState, pricesAction, pricesPending] = useActionState<ActionResult | null, FormData>(
+    saveServicePrices,
     null
   )
   const [copied, setCopied] = useState(false)
@@ -487,6 +491,86 @@ export function SettingsForm({ settings, subscription, schoolSlug }: Props) {
                        text-white text-sm font-semibold rounded-xl transition"
           >
             {payPending ? 'Enregistrement…' : 'Enregistrer le moyen de paiement'}
+          </button>
+        </section>
+      </form>
+
+      {/* ── Tarifs des services payants (transport, cantine) ────────── */}
+      <form action={pricesAction}>
+        <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">Tarifs des services payants</h3>
+            <p className="text-xs text-gray-400">
+              Une fois un tarif renseigné, les parents peuvent s&apos;abonner et payer directement en ligne
+              (via le moyen de paiement ci-dessus) sans passer par l&apos;administration.
+            </p>
+          </div>
+
+          {pricesState && !pricesState.success && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {pricesState.error}
+            </p>
+          )}
+          {pricesState?.success && (
+            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+              Tarifs enregistrés.
+            </p>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Transport scolaire — prix mensuel (FCFA)
+            </label>
+            <input
+              name="transport_monthly_price"
+              type="number" min={0} step={100}
+              defaultValue={settings.transport_monthly_price ?? ''}
+              placeholder="Laisser vide pour désactiver le paiement en ligne"
+              className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300
+                         focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cantine — Déjeuner (FCFA/mois)</label>
+              <input
+                name="cafeteria_price_lunch"
+                type="number" min={0} step={100}
+                defaultValue={settings.cafeteria_price_lunch ?? ''}
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300
+                           focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cantine — Goûter (FCFA/mois)</label>
+              <input
+                name="cafeteria_price_snack"
+                type="number" min={0} step={100}
+                defaultValue={settings.cafeteria_price_snack ?? ''}
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300
+                           focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cantine — Déjeuner + Goûter (FCFA/mois)</label>
+              <input
+                name="cafeteria_price_lunch_snack"
+                type="number" min={0} step={100}
+                defaultValue={settings.cafeteria_price_lunch_snack ?? ''}
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300
+                           focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={pricesPending}
+            className="w-full py-3 px-4 bg-primary hover:opacity-90 disabled:opacity-60
+                       text-white text-sm font-semibold rounded-xl transition"
+          >
+            {pricesPending ? 'Enregistrement…' : 'Enregistrer les tarifs'}
           </button>
         </section>
       </form>

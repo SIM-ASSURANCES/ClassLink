@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
       studentId?: string
       schoolId?: string
       parentSubscriptionId?: string
+      subscriptionId?: string
     } = data.metadata ?? {}
 
     // ── Paiement d'abonnement SaaS (création d'école) ──────────────────────
@@ -75,6 +76,37 @@ export async function POST(request: NextRequest) {
         `
       }
       console.info(`[GeniusPay webhook] Abonnement parent ${metadata.parentSubscriptionId} → ${verification.status}`)
+      return NextResponse.json({ received: true })
+    }
+
+    // ── Abonnement transport / cantine (paiement en ligne parent) ──────────
+    // Compte GeniusPay de l'ÉCOLE (jamais le compte global) → signature avec
+    // le secret webhook de l'école (repli global géré par verifyWebhookSignature).
+    if (metadata.kind === 'transport_subscription' || metadata.kind === 'cafeteria_subscription') {
+      const table = metadata.kind === 'transport_subscription' ? 'bus_subscriptions' : 'cafeteria_subscriptions'
+      if (!metadata.subscriptionId || !metadata.schemaName || !reference) {
+        return NextResponse.json({ error: 'Missing metadata fields' }, { status: 400 })
+      }
+      const cfg = await getSchoolPaymentConfig(metadata.schemaName)
+      const isValid = await verifyWebhookSignature(rawBody, timestamp, signature, cfg?.webhookSecret ?? undefined)
+      if (!isValid) {
+        console.error(`[GeniusPay webhook] Signature invalide (${metadata.kind})`)
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+      }
+      const verification = await verifySchoolPayment(metadata.schemaName, 'GENIUSPAY', reference)
+      const tenantDb = getTenantPrisma(metadata.schemaName) as any
+      if (verification.status === 'ACCEPTED') {
+        await tenantDb.$executeRawUnsafe(
+          `UPDATE ${table} SET status = 'ACTIVE', payment_status = 'PAID', paid_at = NOW(), updated_at = NOW() WHERE id = $1 AND provider_ref = $2`,
+          metadata.subscriptionId, reference,
+        )
+      } else if (verification.status === 'REFUSED') {
+        await tenantDb.$executeRawUnsafe(
+          `UPDATE ${table} SET payment_status = 'FAILED', updated_at = NOW() WHERE id = $1 AND provider_ref = $2`,
+          metadata.subscriptionId, reference,
+        )
+      }
+      console.info(`[GeniusPay webhook] ${metadata.kind} ${metadata.subscriptionId} → ${verification.status}`)
       return NextResponse.json({ received: true })
     }
 

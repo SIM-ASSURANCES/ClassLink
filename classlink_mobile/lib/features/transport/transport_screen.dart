@@ -8,6 +8,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/providers/refresh_provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/subscribe_button.dart';
 import '../parent/widgets/parent_paywall_gate.dart';
 
 const _pollInterval = Duration(seconds: 15);
@@ -67,6 +68,9 @@ class _TransportScreenState extends ConsumerState<TransportScreen> {
             }
             if (transport['subscribed'] == false) {
               final stop = transport['stop'] as Map<String, dynamic>?;
+              final monthlyPrice = (transport['monthlyPrice'] as num?)?.toDouble();
+              final sub = transport['subscription'] as Map<String, dynamic>?;
+              final paymentPending = sub?['paymentStatus'] == 'PENDING';
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -83,13 +87,27 @@ class _TransportScreenState extends ConsumerState<TransportScreen> {
                           style: const TextStyle(fontSize: 12, color: AppTheme.textSub)),
                       ],
                       const SizedBox(height: 10),
-                      const Text(
-                        "Le suivi en direct du car et les informations du chauffeur ne sont "
-                        "disponibles qu'une fois l'abonnement transport souscrit auprès de "
-                        "l'administration de l'école.",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: AppTheme.textSub),
-                      ),
+                      if (paymentPending)
+                        const Text(
+                          'Un paiement est en attente de confirmation. Actualisez dans quelques instants.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: AppTheme.textSub),
+                        )
+                      else if (monthlyPrice != null)
+                        SubscribeButton(
+                          endpoint: ApiConstants.transport,
+                          body: {'studentId': widget.studentId},
+                          label: "S'abonner en ligne — ${monthlyPrice.toStringAsFixed(0)} FCFA/mois",
+                          onLaunched: () => ref.invalidate(_transportProvider(widget.studentId)),
+                        )
+                      else
+                        const Text(
+                          "Le suivi en direct du car et les informations du chauffeur ne sont "
+                          "disponibles qu'une fois l'abonnement transport souscrit auprès de "
+                          "l'administration de l'école.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: AppTheme.textSub),
+                        ),
                     ],
                   ),
                 ),

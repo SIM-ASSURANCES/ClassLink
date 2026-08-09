@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     // Récupérer le contexte métier stocké dans metadata (avant vérif de signature
     // pour savoir quelle clé d'école utiliser ; la signature est validée ensuite).
-    let metadata: { paymentId?: string; schemaName?: string; studentId?: string } = {}
+    let metadata: { kind?: string; paymentId?: string; schemaName?: string; studentId?: string; subscriptionId?: string } = {}
     try {
       metadata = JSON.parse(rawCustom)
     } catch {
@@ -20,9 +20,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid metadata' }, { status: 400 })
     }
 
-    const { paymentId, schemaName } = metadata
-    if (!paymentId || !schemaName) {
-      console.error('[CinetPay webhook] Missing paymentId or schemaName in metadata')
+    const { schemaName } = metadata
+    if (!schemaName) {
+      console.error('[CinetPay webhook] Missing schemaName in metadata')
       return NextResponse.json({ error: 'Missing metadata fields' }, { status: 400 })
     }
 
@@ -32,6 +32,35 @@ export async function POST(request: NextRequest) {
     if (!isValid) {
       console.error('[CinetPay webhook] Invalid signature')
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
+    }
+
+    // ── Abonnement transport / cantine (paiement en ligne parent) ──────────
+    if (metadata.kind === 'transport_subscription' || metadata.kind === 'cafeteria_subscription') {
+      const table = metadata.kind === 'transport_subscription' ? 'bus_subscriptions' : 'cafeteria_subscriptions'
+      if (!metadata.subscriptionId) {
+        return NextResponse.json({ error: 'Missing subscriptionId' }, { status: 400 })
+      }
+      const verification = await verifySchoolPayment(schemaName, 'CINETPAY', transactionId)
+      const tenantDb = getTenantPrisma(schemaName) as any
+      if (verification.status === 'ACCEPTED') {
+        await tenantDb.$executeRawUnsafe(
+          `UPDATE ${table} SET status = 'ACTIVE', payment_status = 'PAID', paid_at = NOW(), updated_at = NOW() WHERE id = $1 AND provider_ref = $2`,
+          metadata.subscriptionId, transactionId,
+        )
+      } else if (verification.status === 'REFUSED') {
+        await tenantDb.$executeRawUnsafe(
+          `UPDATE ${table} SET payment_status = 'FAILED', updated_at = NOW() WHERE id = $1 AND provider_ref = $2`,
+          metadata.subscriptionId, transactionId,
+        )
+      }
+      console.info(`[CinetPay webhook] ${metadata.kind} ${metadata.subscriptionId} → ${verification.status}`)
+      return NextResponse.json({ received: true })
+    }
+
+    const { paymentId } = metadata
+    if (!paymentId) {
+      console.error('[CinetPay webhook] Missing paymentId in metadata')
+      return NextResponse.json({ error: 'Missing metadata fields' }, { status: 400 })
     }
 
     // Vérifier le statut auprès de CinetPay (clés de l'école)

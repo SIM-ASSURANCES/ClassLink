@@ -9,6 +9,15 @@ interface Message {
   isError?: boolean
 }
 
+/** Rend `**texte**` en gras — seule mise en forme que l'assistant IA utilise. */
+function renderWithBold(content: string) {
+  const parts = content.split(/(\*\*[^*]+?\*\*)/g)
+  return parts.map((part, i) => {
+    const match = part.match(/^\*\*([^*]+?)\*\*$/)
+    return match ? <strong key={i}>{match[1]}</strong> : <span key={i}>{part}</span>
+  })
+}
+
 interface Props {
   askFn: (question: string, history: { role: 'user' | 'assistant'; content: string }[]) => Promise<ActionResult<string>>
   emptyStateText: string
@@ -81,7 +90,7 @@ export function AiChatPanel({ askFn, emptyStateText, suggestions }: Props) {
                   ? 'bg-orange-50 text-orange-700 border border-orange-200'
                   : 'bg-gray-100 text-gray-800'
             }`}>
-              {m.content}
+              {renderWithBold(m.content)}
             </div>
           </div>
         ))}

@@ -5,6 +5,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_constants.dart';
 import '../../core/providers/refresh_provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/subscribe_button.dart';
 import '../parent/widgets/parent_paywall_gate.dart';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
@@ -40,6 +41,7 @@ class CafeteriaScreen extends ConsumerWidget {
           final sub      = data['subscription'] as Map<String, dynamic>?;
           // Vue parent : un statut d'abonnement par enfant, comme le web.
           final children = data['children'] as List<dynamic>?;
+          final prices   = (data['prices'] as Map<String, dynamic>?) ?? const {};
 
           // Grouper par jour
           final byDay = <int, List<Map<String, dynamic>>>{};
@@ -61,7 +63,11 @@ class CafeteriaScreen extends ConsumerWidget {
                 // Statut abonnement — parent : un bandeau par enfant (comme le
                 // web) ; élève : son propre bandeau.
                 if (children != null)
-                  ...children.map((c) => _ChildSubscriptionCard(child: c as Map<String, dynamic>))
+                  ...children.map((c) => _ChildSubscriptionCard(
+                    child: c as Map<String, dynamic>,
+                    prices: prices,
+                    onSubscribed: () => ref.invalidate(cafeteriaProvider),
+                  ))
                 else
                   _SubscriptionBanner(sub: sub),
 
@@ -159,17 +165,31 @@ class _SubscriptionBanner extends StatelessWidget {
 
 /// Carte de statut cantine d'un enfant (vue parent) — reflète la page web :
 /// nom, classe, badge de statut, et détail type/depuis/montant si abonné.
-class _ChildSubscriptionCard extends StatelessWidget {
+class _ChildSubscriptionCard extends StatefulWidget {
   final Map<String, dynamic> child;
-  const _ChildSubscriptionCard({required this.child});
+  final Map<String, dynamic> prices;
+  final VoidCallback onSubscribed;
+  const _ChildSubscriptionCard({required this.child, required this.prices, required this.onSubscribed});
+
+  @override
+  State<_ChildSubscriptionCard> createState() => _ChildSubscriptionCardState();
+}
+
+class _ChildSubscriptionCardState extends State<_ChildSubscriptionCard> {
+  String? _mealType;
 
   @override
   Widget build(BuildContext context) {
+    final child     = widget.child;
+    final prices    = widget.prices;
     final sub       = child['subscription'] as Map<String, dynamic>?;
     final active    = sub != null && sub['status'] == 'ACTIVE';
+    final pending   = sub != null && sub['status'] == 'PENDING_PAYMENT';
     final firstName = child['firstName'] as String? ?? '';
     final lastName  = child['lastName'] as String? ?? '';
     final amount    = sub?['amount'];
+    final available = prices.entries.where((e) => e.value != null).toList();
+    _mealType ??= available.isNotEmpty ? available.first.key : null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -208,13 +228,13 @@ class _ChildSubscriptionCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: (active ? AppTheme.success : AppTheme.textSub).withValues(alpha: 0.12),
+                  color: (active ? AppTheme.success : pending ? AppTheme.primary : AppTheme.textSub).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  active ? 'Actif' : 'Non abonné',
+                  active ? 'Actif' : pending ? 'Paiement en attente' : 'Non abonné',
                   style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                    color: active ? AppTheme.success : AppTheme.textSub),
+                    color: active ? AppTheme.success : pending ? AppTheme.primary : AppTheme.textSub),
                 ),
               ),
             ],
@@ -226,6 +246,40 @@ class _ChildSubscriptionCard extends StatelessWidget {
               ' · Depuis le ${sub['start_date']?.toString().substring(0, 10) ?? ''}'
               '${amount != null && (amount as num) > 0 ? ' · ${NumberFormat('#,###').format(amount)} F' : ''}',
               style: TextStyle(fontSize: 11, color: AppTheme.textSub),
+            ),
+          ] else if (pending) ...[
+            const SizedBox(height: 8),
+            const Text('Paiement en cours de traitement — actualisez dans quelques instants.',
+              style: TextStyle(fontSize: 11, color: AppTheme.textSub)),
+          ] else if (available.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _mealType,
+                    isDense: true,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: available.map((e) => DropdownMenuItem(
+                      value: e.key,
+                      child: Text('${_mealLabels[e.key] ?? e.key} — ${NumberFormat('#,###').format(e.value)} F',
+                        style: const TextStyle(fontSize: 11)),
+                    )).toList(),
+                    onChanged: (v) => setState(() => _mealType = v),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SubscribeButton(
+                  endpoint: ApiConstants.cafeteria,
+                  body: {'studentId': child['studentId'], 'mealType': _mealType},
+                  label: "S'abonner",
+                  onLaunched: widget.onSubscribed,
+                ),
+              ],
             ),
           ] else ...[
             const SizedBox(height: 8),

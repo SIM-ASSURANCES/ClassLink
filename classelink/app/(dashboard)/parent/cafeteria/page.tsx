@@ -1,16 +1,18 @@
 import { getParentChildren } from '@/actions/parent'
 import { getStudentCafeteriaInfo } from '@/actions/cafeteria'
 import { ParentPaywall } from '@/components/ui/parent-paywall'
+import { SubscribeCafeteriaButton } from '@/components/cafeteria/subscribe-cafeteria-button'
 
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
 
 function statusBadge(status: string | null) {
   if (!status) return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Non abonné</span>
   switch (status) {
-    case 'ACTIVE':    return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Actif</span>
-    case 'SUSPENDED': return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Suspendu</span>
-    case 'INACTIVE':  return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Inactif</span>
-    default:          return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">{status}</span>
+    case 'ACTIVE':          return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Actif</span>
+    case 'PENDING_PAYMENT': return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Paiement en attente</span>
+    case 'SUSPENDED':       return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Suspendu</span>
+    case 'INACTIVE':        return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Inactif</span>
+    default:                return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">{status}</span>
   }
 }
 
@@ -25,6 +27,7 @@ export default async function ParentCafeteriaPage() {
         child,
         subscription: result.success ? result.data?.subscription ?? null : null,
         menus: result.success ? result.data?.menus ?? [] : [],
+        prices: result.success ? result.data?.prices ?? { LUNCH: null, SNACK: null, LUNCH_SNACK: null } : { LUNCH: null, SNACK: null, LUNCH_SNACK: null },
       }
     })
   )
@@ -45,7 +48,7 @@ export default async function ParentCafeteriaPage() {
         </div>
       ) : (
         <div className="space-y-8">
-          {cafeteriaData.map(({ child, subscription, menus }) => {
+          {cafeteriaData.map(({ child, subscription, menus, prices }) => {
             // Grouper les menus par jour
             const menusByDay: Record<number, any[]> = {}
             for (const menu of menus) {
@@ -73,13 +76,20 @@ export default async function ParentCafeteriaPage() {
                 </div>
 
                 {/* Infos abonnement */}
-                {subscription && (
+                {subscription?.status === 'ACTIVE' && (
                   <div className="px-6 py-3 bg-green-50 border-b border-green-100">
                     <div className="flex flex-wrap gap-4 text-xs text-green-800">
                       <span><strong>Type :</strong> {subscription.meal_type}</span>
                       <span><strong>Depuis le :</strong> {new Date(subscription.start_date).toLocaleDateString('fr-FR')}</span>
                       <span><strong>Montant :</strong> {subscription.amount ? Number(subscription.amount).toLocaleString('fr-FR') + ' FCFA' : '—'}</span>
                     </div>
+                  </div>
+                )}
+                {subscription?.status === 'PENDING_PAYMENT' && (
+                  <div className="px-6 py-3 bg-blue-50 border-b border-blue-100">
+                    <p className="text-xs text-blue-800">
+                      Paiement en cours de traitement pour {subscription.meal_type} — cette page se mettra à jour automatiquement une fois confirmé.
+                    </p>
                   </div>
                 )}
 
@@ -114,13 +124,22 @@ export default async function ParentCafeteriaPage() {
                   )}
                 </div>
 
-                {/* Message contact */}
-                {!subscription && (
-                  <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
-                    <p className="text-sm text-gray-500">
-                      <strong>{child.first_name}</strong> n&apos;est pas abonné(e) à la cantine.{' '}
-                      <span className="text-purple-700">Contactez l&apos;administration</span> pour souscrire à un abonnement.
-                    </p>
+                {/* Message contact / abonnement en ligne */}
+                {(!subscription || subscription.status === 'CANCELLED' || subscription.status === 'SUSPENDED') && (
+                  <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 text-center">
+                    {Object.values(prices).some((p: any) => p != null) ? (
+                      <>
+                        <p className="text-sm text-gray-500">
+                          <strong>{child.first_name}</strong> n&apos;est pas abonné(e) à la cantine.
+                        </p>
+                        <SubscribeCafeteriaButton studentId={child.id} prices={prices} />
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        <strong>{child.first_name}</strong> n&apos;est pas abonné(e) à la cantine.{' '}
+                        <span className="text-purple-700">Contactez l&apos;administration</span> pour souscrire à un abonnement.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

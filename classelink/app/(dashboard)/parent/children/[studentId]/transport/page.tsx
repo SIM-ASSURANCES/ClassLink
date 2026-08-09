@@ -5,11 +5,16 @@ import Link from 'next/link'
 import { ChildTabs } from '../child-tabs'
 import { ParentPaywall } from '@/components/ui/parent-paywall'
 import { TransportLiveView } from './transport-live-view'
+import { SubscribeTransportButton } from '@/components/transport/subscribe-transport-button'
 
-interface Props { params: Promise<{ studentId: string }> }
+interface Props {
+  params: Promise<{ studentId: string }>
+  searchParams: Promise<{ paid?: string }>
+}
 
-export default async function ChildTransportPage({ params }: Props) {
+export default async function ChildTransportPage({ params, searchParams }: Props) {
   const { studentId } = await params
+  const { paid } = await searchParams
   const [details, result] = await Promise.all([
     getChildDetails(studentId),
     getChildTransportInfo(studentId),
@@ -56,10 +61,30 @@ export default async function ChildTransportPage({ params }: Props) {
             <p className="text-xs text-amber-700 mt-1">
               {transport.routeName} — {transport.stop?.name}
             </p>
-            <p className="text-xs text-amber-600 mt-3 max-w-sm mx-auto">
-              Le suivi en direct du car et les informations du chauffeur ne sont disponibles
-              qu&apos;une fois l&apos;abonnement transport souscrit auprès de l&apos;administration de l&apos;école.
-            </p>
+
+            {paid === 'pending' && transport.subscription?.paymentStatus === 'PENDING' && (
+              <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mt-3 max-w-sm mx-auto">
+                Paiement en cours de traitement — cette page se mettra à jour automatiquement une fois confirmé.
+              </p>
+            )}
+
+            {transport.subscription?.paymentStatus === 'PENDING' ? (
+              <p className="text-xs text-amber-600 mt-3 max-w-sm mx-auto">
+                Un paiement est en attente de confirmation. Actualisez la page dans quelques instants.
+              </p>
+            ) : transport.monthlyPrice != null ? (
+              <>
+                {transport.subscription?.paymentStatus === 'FAILED' && (
+                  <p className="text-xs text-red-600 mt-3">Le dernier paiement a échoué — vous pouvez réessayer.</p>
+                )}
+                <SubscribeTransportButton studentId={studentId} price={transport.monthlyPrice} />
+              </>
+            ) : (
+              <p className="text-xs text-amber-600 mt-3 max-w-sm mx-auto">
+                Le suivi en direct du car et les informations du chauffeur ne sont disponibles
+                qu&apos;une fois l&apos;abonnement transport souscrit auprès de l&apos;administration de l&apos;école.
+              </p>
+            )}
           </div>
         ) : (
           <TransportLiveView studentId={studentId} initialData={transport} />
