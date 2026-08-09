@@ -35,6 +35,24 @@ export const GET = withMobileAuth(['PARENT'], async (req, { user, tenantDb }) =>
   if (!assignment[0]) return NextResponse.json({ transport: null })
   const a = assignment[0]
 
+  // Table ajoutée après le premier déploiement du module transport — voir
+  // actions/transport.ts::ensureBusSubscriptionsTable pour le contexte.
+  await tenantDb.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS bus_subscriptions (
+      id                TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      student_id        TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      academic_year_id  TEXT REFERENCES academic_years(id),
+      start_date        DATE NOT NULL,
+      end_date          DATE,
+      amount_paid       NUMERIC(10,2) DEFAULT 0,
+      status            TEXT NOT NULL DEFAULT 'ACTIVE'
+                        CHECK (status IN ('ACTIVE','SUSPENDED','CANCELLED')),
+      created_at        TIMESTAMPTZ DEFAULT NOW(),
+      updated_at        TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(student_id, academic_year_id)
+    )
+  `)
+
   const subRows: any[] = await tenantDb.$queryRaw`
     SELECT status FROM bus_subscriptions
     WHERE student_id = ${studentId}

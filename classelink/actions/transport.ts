@@ -24,6 +24,31 @@ async function getParentDb() {
   return { db: getTenantPrisma(session.user.schemaName) as any, session }
 }
 
+// La table bus_subscriptions (ajoutée après le premier déploiement du module
+// transport) n'existe pas encore tant que l'admin n'a pas cliqué sur
+// "Resynchroniser le schéma" en super-admin — on la crée ici de façon
+// idempotente au premier usage pour ne pas dépendre de cette étape manuelle.
+async function ensureBusSubscriptionsTable(db: any) {
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS bus_subscriptions (
+      id                TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      student_id        TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      academic_year_id  TEXT REFERENCES academic_years(id),
+      start_date        DATE NOT NULL,
+      end_date          DATE,
+      amount_paid       NUMERIC(10,2) DEFAULT 0,
+      status            TEXT NOT NULL DEFAULT 'ACTIVE'
+                        CHECK (status IN ('ACTIVE','SUSPENDED','CANCELLED')),
+      created_at        TIMESTAMPTZ DEFAULT NOW(),
+      updated_at        TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(student_id, academic_year_id)
+    )
+  `)
+  await db.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS idx_bus_sub_student ON bus_subscriptions(student_id)`
+  )
+}
+
 function dbError(e: any): string {
   if (e?.code === '23505' || e?.message?.includes('23505')) {
     return 'Cette adresse email est déjà utilisée.'
@@ -288,6 +313,7 @@ export async function deleteStop(stopId: string): Promise<ActionResult> {
 export async function getStudentsForAssignment(): Promise<ActionResult<any[]>> {
   try {
     const { db } = await getAdminDb()
+    await ensureBusSubscriptionsTable(db)
     const rows: any[] = await db.$queryRaw`
       SELECT s.id, u.first_name, u.last_name, c.name AS class_name,
              st.route_id, st.stop_id, r.name AS route_name, bs.name AS stop_name,
@@ -314,6 +340,7 @@ export async function getStudentsForAssignment(): Promise<ActionResult<any[]>> {
 export async function getBusSubscriptions(): Promise<ActionResult<any[]>> {
   try {
     const { db } = await getAdminDb()
+    await ensureBusSubscriptionsTable(db)
     const rows: any[] = await db.$queryRaw`
       SELECT bsub.id, bsub.student_id, bsub.start_date, bsub.amount_paid, bsub.status,
              u.first_name, u.last_name, c.name AS class_name
@@ -339,6 +366,7 @@ export async function subscribeStudentTransport(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const { db } = await getAdminDb()
+    await ensureBusSubscriptionsTable(db)
 
     const studentRows: any[] = await db.$queryRaw`SELECT id FROM students WHERE id = ${studentId} LIMIT 1`
     if (!studentRows[0]) return { success: false, error: 'Élève introuvable.' }
@@ -368,6 +396,7 @@ export async function updateBusSubscriptionStatus(subId: string, status: string)
   if (!VALID_BUS_SUB_STATUSES.includes(status)) return { success: false, error: 'Statut invalide.' }
   try {
     const { db } = await getAdminDb()
+    await ensureBusSubscriptionsTable(db)
     await db.$executeRaw`UPDATE bus_subscriptions SET status = ${status}, updated_at = NOW() WHERE id = ${subId}`
     revalidatePath('/admin/transport')
     return { success: true, data: undefined }
@@ -555,6 +584,7 @@ export async function endTrip(tripId: string): Promise<ActionResult> {
 export async function getChildTransportInfo(studentId: string): Promise<ActionResult<any>> {
   try {
     const { db, session } = await getParentDb()
+    await ensureBusSubscriptionsTable(db)
 
     const check: any[] = await db.$queryRaw`
       SELECT ps.id FROM parent_students ps
