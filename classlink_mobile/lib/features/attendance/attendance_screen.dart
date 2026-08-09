@@ -7,6 +7,54 @@ import '../../core/providers/refresh_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/attendance_trend_chart.dart';
 import '../parent/widgets/parent_paywall_gate.dart';
+import '../auth/providers/auth_provider.dart';
+
+Future<void> _showJustifyDialog(BuildContext context, WidgetRef ref, String attendanceId, String? studentId) async {
+  final controller = TextEditingController();
+  final submitted = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Justifier l\'absence'),
+      content: TextField(
+        controller: controller,
+        maxLines: 3,
+        autofocus: true,
+        decoration: const InputDecoration(
+          hintText: 'Motif de l\'absence…',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Envoyer'),
+        ),
+      ],
+    ),
+  );
+
+  if (submitted != true || controller.text.trim().isEmpty) return;
+
+  try {
+    await ApiClient().post(ApiConstants.attendance, data: {
+      'attendanceId': attendanceId,
+      'justification': controller.text.trim(),
+    });
+    ref.invalidate(attendanceProvider(studentId));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Justification envoyée.')),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : $e'), backgroundColor: AppTheme.danger),
+      );
+    }
+  }
+}
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -42,6 +90,7 @@ class AttendanceScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(attendanceProvider(studentId));
+    final isParent = ref.watch(authProvider).user?.isParent ?? false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Absences & retards')),
@@ -118,6 +167,8 @@ class AttendanceScreen extends ConsumerWidget {
                     DateTime? date;
                     try { date = DateTime.parse(rec['date'].toString()); } catch (_) {}
 
+                    final canJustify = isParent && status == 'ABSENT' && !just;
+
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -126,24 +177,43 @@ class AttendanceScreen extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(10),
                         border: Border(left: BorderSide(color: color, width: 3)),
                       ),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(_statusLabel(status, just),
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
-                                if (rec['subjectName'] != null)
-                                  Text(rec['subjectName'], style: TextStyle(fontSize: 12, color: AppTheme.textSub)),
-                                if (rec['comment'] != null && (rec['comment'] as String).isNotEmpty)
-                                  Text(rec['comment'], style: TextStyle(fontSize: 11, color: AppTheme.textSub)),
-                              ],
-                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(_statusLabel(status, just),
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+                                    if (rec['subjectName'] != null)
+                                      Text(rec['subjectName'], style: TextStyle(fontSize: 12, color: AppTheme.textSub)),
+                                    if (rec['comment'] != null && (rec['comment'] as String).isNotEmpty)
+                                      Text(rec['comment'], style: TextStyle(fontSize: 11, color: AppTheme.textSub)),
+                                  ],
+                                ),
+                              ),
+                              if (date != null)
+                                Text(DateFormat('dd/MM/yy').format(date),
+                                  style: TextStyle(fontSize: 11, color: AppTheme.textSub)),
+                            ],
                           ),
-                          if (date != null)
-                            Text(DateFormat('dd/MM/yy').format(date),
-                              style: TextStyle(fontSize: 11, color: AppTheme.textSub)),
+                          if (canJustify) ...[
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: OutlinedButton(
+                                onPressed: () => _showJustifyDialog(context, ref, rec['id'] as String, studentId),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  minimumSize: const Size(0, 32),
+                                ),
+                                child: const Text('Justifier', style: TextStyle(fontSize: 12)),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     );

@@ -18,6 +18,27 @@ async function getParentDb() {
   return { db, session }
 }
 
+// grade_disputes est une nouvelle table tenant — auto-création idempotente au
+// premier usage (voir actions/transport.ts::ensureBusSubscriptionsTable pour
+// le contexte de ce pattern).
+async function ensureGradeDisputesTable(db: any) {
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS grade_disputes (
+      id             TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      grade_id       TEXT NOT NULL REFERENCES grades(id) ON DELETE CASCADE,
+      raised_by      TEXT NOT NULL REFERENCES users(id),
+      reason         TEXT NOT NULL,
+      status         TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','RESOLVED','DISMISSED')),
+      admin_response TEXT,
+      created_at     TIMESTAMPTZ DEFAULT NOW(),
+      resolved_at    TIMESTAMPTZ
+    )
+  `)
+  await db.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS idx_grade_disputes_grade ON grade_disputes(grade_id)`
+  )
+}
+
 export async function getParentChildren() {
   const { db, session } = await getParentDb()
   return db.$queryRaw`
@@ -246,7 +267,8 @@ export async function getChildGrades(studentId: string) {
             'coefficient', g.coefficient,
             'type', g.type,
             'comment', g.comment,
-            'published_at', g.published_at
+            'published_at', g.published_at,
+            'created_at', g.created_at
           ) ORDER BY g.published_at DESC NULLS LAST
         ) AS grades
       FROM grades g
@@ -265,7 +287,19 @@ export async function getChildGrades(studentId: string) {
     ` as Promise<any[]>,
   ])
 
-  return { terms: terms as any[], rows: rows as any[] }
+  await ensureGradeDisputesTable(db)
+  const disputes: any[] = await db.$queryRaw`
+    SELECT gd.grade_id, gd.id, gd.status FROM grade_disputes gd
+    JOIN grades g ON g.id = gd.grade_id
+    WHERE g.student_id = ${studentId}
+  `
+  const disputeByGrade = new Map(disputes.map((d: any) => [d.grade_id, { id: d.id, status: d.status }]))
+  const enrichedRows = (rows as any[]).map(row => ({
+    ...row,
+    grades: (row.grades as any[]).map(g => ({ ...g, dispute: disputeByGrade.get(g.id) ?? null })),
+  }))
+
+  return { terms: terms as any[], rows: enrichedRows }
 }
 
 // ─── Devoirs et exercices ─────────────────────────────────────────────────────

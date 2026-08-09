@@ -6,6 +6,11 @@ import { requireRole } from '@/lib/auth/rbac'
 import { notifyParentsOfStudent, notifyUser } from '@/lib/notifications/create'
 import type { ActionResult } from '@/types'
 
+// Fenêtre pendant laquelle un enseignant peut encore modifier/annuler une note
+// qu'il a saisie ; passé ce délai la note est considérée validée (visible par
+// l'admin, contestable par l'élève/parent — voir actions/grades-disputes.ts).
+const GRADE_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000
+
 function toDate(s: string | null | undefined): Date | null {
   if (!s) return null
   const d = new Date(s)
@@ -135,8 +140,19 @@ export async function saveGrade(
 
   try {
     if (gradeId) {
-      // TEACHER: can only update grades they created
+      // TEACHER: can only update their own grades, and only within 24h of entry
+      // (after that the grade is considered validated — see GRADE_EDIT_WINDOW_MS).
       if (session.user.role === 'TEACHER') {
+        const existing: any[] = await db.$queryRaw`
+          SELECT created_by, created_at FROM grades WHERE id = ${gradeId} LIMIT 1
+        `
+        if (!existing[0]) return { success: false, error: 'Note introuvable.' }
+        if (existing[0].created_by !== session.user.id) {
+          return { success: false, error: 'Vous ne pouvez modifier que vos propres notes.' }
+        }
+        if (Date.now() - new Date(existing[0].created_at).getTime() > GRADE_EDIT_WINDOW_MS) {
+          return { success: false, error: 'Cette note est validée (saisie il y a plus de 24h) — contactez l\'administration pour la modifier.' }
+        }
         await db.$executeRaw`
           UPDATE grades
           SET value = ${value}, coefficient = ${coefficient},
@@ -185,8 +201,19 @@ export async function saveGrade(
 export async function deleteGrade(gradeId: string): Promise<ActionResult> {
   const { db, session, role } = await getTeacherDb()
   try {
-    // TEACHER: only their own grades. ADMIN/CENSOR: any grade in the tenant.
+    // TEACHER: only their own grades, and only within 24h of entry. ADMIN/CENSOR:
+    // any grade in the tenant, no time limit (oversight override).
     if (role === 'TEACHER') {
+      const existing: any[] = await db.$queryRaw`
+        SELECT created_by, created_at FROM grades WHERE id = ${gradeId} LIMIT 1
+      `
+      if (!existing[0]) return { success: false, error: 'Note introuvable.' }
+      if (existing[0].created_by !== session.user.id) {
+        return { success: false, error: 'Vous ne pouvez annuler que vos propres notes.' }
+      }
+      if (Date.now() - new Date(existing[0].created_at).getTime() > GRADE_EDIT_WINDOW_MS) {
+        return { success: false, error: 'Cette note est validée (saisie il y a plus de 24h) — vous ne pouvez plus l\'annuler. Contactez l\'administration.' }
+      }
       await db.$executeRaw`
         DELETE FROM grades WHERE id = ${gradeId} AND created_by = ${session.user.id}
       `

@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../providers/grades_provider.dart';
+import '../../../core/api/api_client.dart';
+import '../../../core/api/api_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/grade_trend_chart.dart';
 import '../../parent/widgets/parent_paywall_gate.dart';
+
+const _disputeWindow = Duration(hours: 24);
 
 // Libellés des types de note — identiques au web (notes/page.tsx).
 const _gradeTypeLabels = {
@@ -133,6 +137,7 @@ class GradesScreen extends ConsumerWidget {
                         children: term.subjects.map((sub) => _SubjectTile(
                           subject: sub,
                           avgColor: _avgColor,
+                          studentId: studentId,
                         )).toList(),
                       ),
                     ),
@@ -150,7 +155,8 @@ class GradesScreen extends ConsumerWidget {
 class _SubjectTile extends StatelessWidget {
   final SubjectGrades subject;
   final Color Function(double?) avgColor;
-  const _SubjectTile({required this.subject, required this.avgColor});
+  final String? studentId;
+  const _SubjectTile({required this.subject, required this.avgColor, this.studentId});
 
   @override
   Widget build(BuildContext context) {
@@ -206,6 +212,8 @@ class _SubjectTile extends StatelessWidget {
             if (g.publishedAt != null)
               Text(_shortDate(g.publishedAt!),
                 style: TextStyle(fontSize: 10, color: AppTheme.textSub)),
+            const SizedBox(width: 6),
+            _GradeDisputeChip(grade: g, studentId: studentId),
           ],
         ),
       )).toList(),
@@ -218,5 +226,87 @@ class _SubjectTile extends StatelessWidget {
     } catch (_) {
       try { return DateFormat('d MMM').format(DateTime.parse(iso)); } catch (_) { return ''; }
     }
+  }
+}
+
+const Map<String, String> _disputeStatusLabels = {
+  'OPEN': 'Réclamation envoyée', 'RESOLVED': 'Réclamation traitée', 'DISMISSED': 'Réclamation rejetée',
+};
+const Map<String, Color> _disputeStatusColors = {
+  'OPEN': AppTheme.warning, 'RESOLVED': AppTheme.success, 'DISMISSED': AppTheme.textSub,
+};
+
+class _GradeDisputeChip extends ConsumerStatefulWidget {
+  final GradeEntry grade;
+  final String? studentId;
+  const _GradeDisputeChip({required this.grade, this.studentId});
+
+  @override
+  ConsumerState<_GradeDisputeChip> createState() => _GradeDisputeChipState();
+}
+
+class _GradeDisputeChipState extends ConsumerState<_GradeDisputeChip> {
+  GradeDispute? _localDispute;
+
+  Future<void> _showDisputeDialog() async {
+    final controller = TextEditingController();
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Contester cette note'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Motif de la contestation…', border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Envoyer')),
+        ],
+      ),
+    );
+    if (submitted != true || controller.text.trim().isEmpty) return;
+
+    try {
+      final resp = await ApiClient().post(ApiConstants.grades, data: {
+        'gradeId': widget.grade.id,
+        'reason': controller.text.trim(),
+      });
+      setState(() => _localDispute = GradeDispute(id: resp.data['id'] as String, status: resp.data['status'] as String));
+      ref.invalidate(gradesProvider(widget.studentId));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Réclamation envoyée.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e'), backgroundColor: AppTheme.danger),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dispute = _localDispute ?? widget.grade.dispute;
+    if (dispute != null) {
+      return Text(
+        _disputeStatusLabels[dispute.status] ?? dispute.status,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _disputeStatusColors[dispute.status] ?? AppTheme.textSub),
+      );
+    }
+
+    final createdAt = widget.grade.createdAt;
+    if (createdAt == null) return const SizedBox.shrink();
+    DateTime? created;
+    try { created = DateTime.parse(createdAt); } catch (_) { return const SizedBox.shrink(); }
+    if (DateTime.now().difference(created) >= _disputeWindow) return const SizedBox.shrink();
+
+    return GestureDetector(
+      onTap: _showDisputeDialog,
+      child: const Text('Contester',
+        style: TextStyle(fontSize: 10, color: AppTheme.textSub, decoration: TextDecoration.underline)),
+    );
   }
 }

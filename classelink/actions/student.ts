@@ -9,6 +9,27 @@ async function getStudentDb() {
   return { db, session }
 }
 
+// grade_disputes est une nouvelle table tenant — auto-création idempotente au
+// premier usage (voir actions/transport.ts::ensureBusSubscriptionsTable pour
+// le contexte de ce pattern).
+async function ensureGradeDisputesTable(db: any) {
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS grade_disputes (
+      id             TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      grade_id       TEXT NOT NULL REFERENCES grades(id) ON DELETE CASCADE,
+      raised_by      TEXT NOT NULL REFERENCES users(id),
+      reason         TEXT NOT NULL,
+      status         TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','RESOLVED','DISMISSED')),
+      admin_response TEXT,
+      created_at     TIMESTAMPTZ DEFAULT NOW(),
+      resolved_at    TIMESTAMPTZ
+    )
+  `)
+  await db.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS idx_grade_disputes_grade ON grade_disputes(grade_id)`
+  )
+}
+
 export async function getStudentProfile() {
   const { db, session } = await getStudentDb()
   const rows: any[] = await db.$queryRaw`
@@ -64,13 +85,25 @@ export async function getStudentGrades(termId: string) {
   `
   const subjects = subjectRows.map(s => ({ ...s, coefficient: Number(s.coefficient) }))
 
-  const gradeRows: any[] = await db.$queryRaw`
-    SELECT g.id, g.subject_id, g.type, g.value, g.coefficient, g.comment, g.created_at
-    FROM grades g
-    WHERE g.student_id = ${studentId} AND g.term_id = ${termId}
-    ORDER BY g.created_at
-  `
-  const grades = gradeRows.map(g => ({ ...g, value: Number(g.value), coefficient: Number(g.coefficient) }))
+  await ensureGradeDisputesTable(db)
+  const [gradeRows, disputeRows]: [any[], any[]] = await Promise.all([
+    db.$queryRaw`
+      SELECT g.id, g.subject_id, g.type, g.value, g.coefficient, g.comment, g.created_at
+      FROM grades g
+      WHERE g.student_id = ${studentId} AND g.term_id = ${termId}
+      ORDER BY g.created_at
+    `,
+    db.$queryRaw`
+      SELECT gd.grade_id, gd.id, gd.status FROM grade_disputes gd
+      JOIN grades g ON g.id = gd.grade_id
+      WHERE g.student_id = ${studentId} AND g.term_id = ${termId}
+    `,
+  ])
+  const disputeByGrade = new Map(disputeRows.map(d => [d.grade_id, { id: d.id, status: d.status }]))
+  const grades = gradeRows.map(g => ({
+    ...g, value: Number(g.value), coefficient: Number(g.coefficient),
+    dispute: disputeByGrade.get(g.id) ?? null,
+  }))
 
   const gradesBySubject: Record<string, any[]> = {}
   for (const g of grades) {

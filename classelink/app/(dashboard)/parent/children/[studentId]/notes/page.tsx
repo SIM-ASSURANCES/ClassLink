@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChildTabs } from '../child-tabs'
 import { ParentPaywall } from '@/components/ui/parent-paywall'
+import { GradeDisputeButton } from '@/components/grades/grade-dispute-button'
 
 interface Props { params: Promise<{ studentId: string }> }
 
@@ -157,6 +158,9 @@ export default async function ChildNotesPage({ params }: Props) {
                                 <span className="text-xs text-gray-300">
                                   {new Date(g.published_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
                                 </span>
+                              )}
+                              {g.created_at && (
+                                <GradeDisputeButton gradeId={g.id} createdAt={g.created_at} dispute={g.dispute} />
                               )}
                             </div>
                           ))}

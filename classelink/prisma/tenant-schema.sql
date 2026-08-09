@@ -186,6 +186,22 @@ CREATE TABLE IF NOT EXISTS grades (
 CREATE INDEX IF NOT EXISTS idx_grades_student ON grades(student_id);
 CREATE INDEX IF NOT EXISTS idx_grades_term ON grades(term_id);
 
+-- Réclamation d'un élève/parent sur une note, dans les 24h suivant sa saisie —
+-- voir actions/grades-disputes.ts. Le statut « validée » d'une note n'est pas
+-- une colonne : il est calculé à la volée (created_at < NOW() - 24h) pour
+-- éviter un job planifié dédié.
+CREATE TABLE IF NOT EXISTS grade_disputes (
+  id             TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  grade_id       TEXT NOT NULL REFERENCES grades(id) ON DELETE CASCADE,
+  raised_by      TEXT NOT NULL REFERENCES users(id),
+  reason         TEXT NOT NULL,
+  status         TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','RESOLVED','DISMISSED')),
+  admin_response TEXT,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at    TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_grade_disputes_grade ON grade_disputes(grade_id);
+
 -- ─── Présences ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS attendances (
   id            TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,

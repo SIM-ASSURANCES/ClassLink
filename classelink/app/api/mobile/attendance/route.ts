@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withMobileAuth } from '@/lib/auth/mobile-guard'
 
-export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, tenantDb }) => {
+export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req: NextRequest, { user, tenantDb }) => {
   const { searchParams } = new URL(req.url)
   const studentId = searchParams.get('studentId')
 
@@ -66,4 +66,34 @@ export const GET = withMobileAuth(['STUDENT', 'PARENT'], async (req, { user, ten
       termName: t.term_name, present: t.present, late: t.late, absent: t.absent,
     })),
   })
+})
+
+// Justifie une absence — voir actions/parent.ts::submitJustification (web).
+export const POST = withMobileAuth(['PARENT'], async (req: NextRequest, { user, tenantDb }) => {
+  const { attendanceId, justification } = await req.json()
+  if (!attendanceId || !justification?.trim()) {
+    return NextResponse.json({ error: 'Identifiant de présence et justification requis.' }, { status: 400 })
+  }
+
+  const attendance: any[] = await tenantDb.$queryRaw`
+    SELECT a.student_id, a.status FROM attendances a WHERE a.id = ${attendanceId} LIMIT 1
+  `
+  if (!attendance[0]) return NextResponse.json({ error: 'Absence introuvable.' }, { status: 404 })
+  if (attendance[0].status !== 'ABSENT') {
+    return NextResponse.json({ error: 'Seule une absence peut être justifiée.' }, { status: 400 })
+  }
+
+  const check: any[] = await tenantDb.$queryRaw`
+    SELECT ps.id FROM parent_students ps
+    JOIN parents p ON p.id = ps.parent_id
+    WHERE p.user_id = ${user.userId} AND ps.student_id = ${attendance[0].student_id}
+    LIMIT 1
+  `
+  if (!check[0]) return NextResponse.json({ error: 'Accès non autorisé.' }, { status: 403 })
+
+  await tenantDb.$executeRaw`
+    UPDATE attendances SET justified = TRUE, justification = ${justification.trim()} WHERE id = ${attendanceId}
+  `
+
+  return NextResponse.json({ ok: true })
 })

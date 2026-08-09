@@ -8,6 +8,15 @@ import '../../../core/providers/refresh_provider.dart';
 double? _asDouble(dynamic v) =>
     v == null ? null : (v is num ? v.toDouble() : double.tryParse('$v'));
 
+class GradeDispute {
+  final String id;
+  final String status;
+  const GradeDispute({required this.id, required this.status});
+
+  factory GradeDispute.fromJson(Map<String, dynamic> j) =>
+    GradeDispute(id: j['id'], status: j['status']);
+}
+
 class GradeEntry {
   final String  id;
   final double  value;
@@ -15,9 +24,11 @@ class GradeEntry {
   final String? type;
   final String? comment;
   final String? publishedAt;
+  final String? createdAt;
+  final GradeDispute? dispute;
   const GradeEntry({
     required this.id, required this.value, required this.coefficient,
-    this.type, this.comment, this.publishedAt,
+    this.type, this.comment, this.publishedAt, this.createdAt, this.dispute,
   });
 
   factory GradeEntry.fromJson(Map<String, dynamic> j) => GradeEntry(
@@ -27,6 +38,8 @@ class GradeEntry {
     type: j['type'],
     comment: j['comment'],
     publishedAt: j['publishedAt']?.toString(),
+    createdAt: j['createdAt']?.toString(),
+    dispute: j['dispute'] != null ? GradeDispute.fromJson(j['dispute'] as Map<String, dynamic>) : null,
   );
 }
 

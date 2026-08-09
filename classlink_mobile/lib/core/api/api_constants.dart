@@ -11,6 +11,7 @@ class ApiConstants {
   static const String announcements= '/api/mobile/announcements';
   static const String cafeteria    = '/api/mobile/cafeteria';
   static const String messages     = '/api/mobile/messages';
+  static const String contacts     = '/api/mobile/contacts';
   static const String children     = '/api/mobile/parent/children';
   static const String parentSubscription = '/api/mobile/parent/subscription';
   static const String payments     = '/api/mobile/payments';

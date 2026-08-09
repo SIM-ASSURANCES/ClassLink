@@ -127,9 +127,17 @@ export function GradeSheet({ students: initial, subjectId, subjectName, termId }
   }
 
   async function handleDelete(studentId: string, gradeId: string) {
+    setError(null)
     setSaving(gradeId)
-    await deleteGrade(gradeId)
+    const result = await deleteGrade(gradeId)
     setSaving(null)
+    if (!result.success) {
+      setError(result.error)
+      return
+    }
+    setStudents(prev => prev.map(s => s.student_id === studentId
+      ? { ...s, grades: s.grades.filter(g => g.id !== gradeId) }
+      : s))
   }
 
   /**

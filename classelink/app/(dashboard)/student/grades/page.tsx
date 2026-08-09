@@ -1,5 +1,6 @@
 import { getStudentTerms, getStudentGrades, getStudentTermAverages } from '@/actions/student'
 import { GradeTrendChart } from '@/components/charts/grade-trend-chart'
+import { GradeDisputeButton } from '@/components/grades/grade-dispute-button'
 import Link from 'next/link'
 
 interface Props {
@@ -102,6 +103,7 @@ export default async function StudentGradesPage({ searchParams }: Props) {
                         {parseFloat(g.value).toFixed(2)}
                       </span>
                       <span className="text-xs text-gray-400">×{g.coefficient}</span>
+                      <GradeDisputeButton gradeId={g.id} createdAt={g.created_at} dispute={g.dispute} />
                     </div>
                   ))}
                 </div>

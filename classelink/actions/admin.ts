@@ -30,6 +30,68 @@ async function getDb() {
   return { db: getTenantPrisma(session.user.schemaName) as any, session }
 }
 
+// grade_disputes est une nouvelle table tenant — auto-création idempotente au
+// premier usage (voir actions/grade-disputes.ts::ensureGradeDisputesTable pour
+// le contexte, même pattern dupliqué ici car non exportable depuis un fichier
+// 'use server').
+async function ensureGradeDisputesTable(db: any) {
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS grade_disputes (
+      id             TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      grade_id       TEXT NOT NULL REFERENCES grades(id) ON DELETE CASCADE,
+      raised_by      TEXT NOT NULL REFERENCES users(id),
+      reason         TEXT NOT NULL,
+      status         TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','RESOLVED','DISMISSED')),
+      admin_response TEXT,
+      created_at     TIMESTAMPTZ DEFAULT NOW(),
+      resolved_at    TIMESTAMPTZ
+    )
+  `)
+  await db.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS idx_grade_disputes_grade ON grade_disputes(grade_id)`
+  )
+}
+
+const GRADE_VALIDATION_WINDOW_MS = 24 * 60 * 60 * 1000
+
+/** Flux de supervision : toutes les notes récemment saisies, statut de validation, réclamations. */
+export async function getRecentGrades(): Promise<ActionResult<any[]>> {
+  try {
+    const session = await requireRole('ADMIN', 'CENSOR')
+    const db = getTenantPrisma(session.user.schemaName) as any
+    await ensureGradeDisputesTable(db)
+
+    const rows: any[] = await db.$queryRaw`
+      SELECT
+        g.id, g.value, g.max_value, g.coefficient, g.type, g.comment, g.created_at,
+        sub.name AS subject_name,
+        su.first_name AS student_first_name, su.last_name AS student_last_name,
+        c.name AS class_name,
+        tu.first_name AS teacher_first_name, tu.last_name AS teacher_last_name,
+        gd.id AS dispute_id, gd.status AS dispute_status, gd.reason AS dispute_reason
+      FROM grades g
+      JOIN subjects sub ON sub.id = g.subject_id
+      JOIN students st  ON st.id = g.student_id
+      JOIN users su     ON su.id = st.user_id
+      LEFT JOIN enrollments e ON e.student_id = st.id AND e.status = 'ACTIVE'
+      LEFT JOIN classes c     ON c.id = e.class_id
+      LEFT JOIN users tu      ON tu.id = g.created_by
+      LEFT JOIN grade_disputes gd ON gd.grade_id = g.id
+      ORDER BY g.created_at DESC
+      LIMIT 300
+    `
+    return {
+      success: true,
+      data: rows.map(r => ({
+        ...r,
+        validated: Date.now() - new Date(r.created_at).getTime() > GRADE_VALIDATION_WINDOW_MS,
+      })),
+    }
+  } catch (error: any) {
+    return { success: false, error: dbError(error) }
+  }
+}
+
 // ─── KPIs Dashboard ──────────────────────────────────────────────────────────
 
 export async function getAdminKPIs() {
