@@ -149,11 +149,16 @@ export async function subscribeStudent(
   await ensureCafeteriaSubscriptionColumns(db)
 
   try {
-    // Vérifie que l'élève existe (évite une violation de clé étrangère)
+    // L'admin saisit le N° élève (matricule) ; l'UUID reste accepté en secours.
+    // Résolution avant l'INSERT : évite aussi une violation de clé étrangère.
+    const ref = studentId.trim()
     const studentRows: any[] = await db.$queryRaw`
-      SELECT id FROM students WHERE id = ${studentId} LIMIT 1
+      SELECT id FROM students
+      WHERE UPPER(student_id) = UPPER(${ref}) OR id::text = ${ref}
+      LIMIT 1
     `
-    if (!studentRows[0]) return { success: false, error: 'Élève introuvable.' }
+    if (!studentRows[0]) return { success: false, error: `Aucun élève trouvé pour le N° « ${ref} ».` }
+    studentId = studentRows[0].id
 
     const yearRows: any[] = await db.$queryRaw`
       SELECT id FROM academic_years WHERE is_current = TRUE LIMIT 1

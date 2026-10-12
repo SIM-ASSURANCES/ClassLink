@@ -266,14 +266,14 @@ export function SubscribeModal({ open, onClose }: SubModalProps) {
 
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="sub-studentId">
-              ID de l&apos;élève <span className="text-red-500">*</span>
+              N° élève (matricule) <span className="text-red-500">*</span>
             </label>
             <input
               id="sub-studentId"
               name="studentId"
               type="text"
               required
-              placeholder="UUID de l'élève"
+              placeholder="Ex. EL-26-123456"
               className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm
                          focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
             />
