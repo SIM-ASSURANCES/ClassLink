@@ -43,6 +43,9 @@ const PUBLIC_PATHS = [
   // exclusion, TOUTE requête mobile (y compris /auth/login) était redirigée
   // vers /login puisqu'aucune session web n'existe côté mobile.
   '/api/mobile',
+  // API d'inscription par école : authentifiée par clé Bearer (lib/enrollment/
+  // api-auth.ts), sans session web — les appels viennent de serveurs tiers.
+  '/api/v1',
   '/_next',
   '/favicon.ico',
   '/icons',

@@ -501,6 +501,47 @@ CREATE TABLE IF NOT EXISTS enrollment_applications (
 CREATE INDEX IF NOT EXISTS idx_applications_status       ON enrollment_applications(status);
 CREATE INDEX IF NOT EXISTS idx_applications_academic_year ON enrollment_applications(academic_year_id);
 
+-- ─── Inscriptions : API par école + page publique configurable ───────────────
+-- Ce bloc est dupliqué à l'identique dans lib/enrollment/schema.ts (auto-création
+-- au premier usage, sans attendre la resynchronisation super-admin).
+ALTER TABLE enrollment_applications ADD COLUMN IF NOT EXISTS source       TEXT NOT NULL DEFAULT 'WEB';
+ALTER TABLE enrollment_applications ADD COLUMN IF NOT EXISTS external_ref TEXT;
+ALTER TABLE enrollment_applications ADD COLUMN IF NOT EXISTS level_id     TEXT REFERENCES levels(id) ON DELETE SET NULL;
+ALTER TABLE enrollment_applications ADD COLUMN IF NOT EXISTS attachments  JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE enrollment_applications ADD COLUMN IF NOT EXISTS student_id   TEXT REFERENCES students(id) ON DELETE SET NULL;
+ALTER TABLE enrollment_applications ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
+
+ALTER TABLE students ADD COLUMN IF NOT EXISTS external_ref TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_students_external_ref ON students(external_ref) WHERE external_ref IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS enrollment_settings (
+  id                 TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  is_open            BOOLEAN NOT NULL DEFAULT FALSE,
+  opens_at           TIMESTAMPTZ,
+  closes_at          TIMESTAMPTZ,
+  welcome_title      TEXT,
+  welcome_message    TEXT,
+  conditions_text    TEXT,
+  require_conditions BOOLEAN NOT NULL DEFAULT FALSE,
+  offered_level_ids  TEXT[] NOT NULL DEFAULT '{}',
+  field_config       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  documents_config   JSONB NOT NULL DEFAULT '{}'::jsonb,
+  notify_admins      BOOLEAN NOT NULL DEFAULT TRUE,
+  updated_at         TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS enrollment_api_keys (
+  id           TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  name         TEXT NOT NULL,
+  key_prefix   TEXT NOT NULL,
+  key_hash     TEXT NOT NULL UNIQUE,
+  is_active    BOOLEAN NOT NULL DEFAULT TRUE,
+  last_used_at TIMESTAMPTZ,
+  created_by   TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  revoked_at   TIMESTAMPTZ
+);
+
 -- ─── Bibliothèque ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS books (
   id           TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,

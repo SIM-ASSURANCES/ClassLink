@@ -1,13 +1,18 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { reviewApplication } from '@/actions/enrollment'
+import { reviewApplication, type ReviewOutcome } from '@/actions/enrollment'
+import type { EnrollableClass } from '@/actions/enrollment-settings'
 import { formatDate } from '@/lib/utils'
 import { ExportExcelButton } from '@/components/ui/export-excel-button'
 import Link from 'next/link'
 import type { PaginatedResult } from '@/types'
 
+type Attachment = { key: string; label: string; name: string; size: number }
+
 type Application = {
+  attachments:      Attachment[] | null
+  student_id:       string | null
   id:               string
   first_name:       string
   last_name:        string
@@ -38,17 +43,27 @@ const STATUS_CFG: Record<string, { label: string; cls: string }> = {
   WAITLISTED: { label: 'Liste att.', cls: 'bg-blue-100 text-blue-700 border-blue-200' },
 }
 
-function ApplicationModal({ app, onClose }: { app: Application; onClose: () => void }) {
+function ApplicationModal({ app, classes, onClose }: { app: Application; classes: EnrollableClass[]; onClose: () => void }) {
   const [decision, setDecision]   = useState<'ACCEPTED' | 'REJECTED' | 'WAITLISTED'>('ACCEPTED')
   const [notes, setNotes]         = useState('')
+  const [classId, setClassId]     = useState('')
   const [isPending, startTransition] = useTransition()
+  const [error, setError]         = useState<string | null>(null)
+  const [outcome, setOutcome]     = useState<ReviewOutcome | null>(null)
   const [done, setDone]           = useState(false)
 
+  // Une candidature en liste d'attente peut encore être tranchée.
+  const canDecide = app.status === 'PENDING' || app.status === 'WAITLISTED'
+
   const handleDecision = () => {
+    setError(null)
     startTransition(async () => {
-      await reviewApplication(app.id, decision, notes)
+      const result = await reviewApplication(app.id, decision, notes, { classId: classId || null })
+      if (!result.success) { setError(result.error ?? 'Erreur'); return }
+      setOutcome(result.data ?? null)
       setDone(true)
-      setTimeout(onClose, 1500)
+      // Après une acceptation on laisse le temps de lire le matricule / l'état de l'invitation.
+      setTimeout(onClose, decision === 'ACCEPTED' ? 6000 : 1500)
     })
   }
 
@@ -111,8 +126,33 @@ function ApplicationModal({ app, onClose }: { app: Application; onClose: () => v
             </section>
           )}
 
-          {/* Décision — seulement si PENDING */}
-          {app.status === 'PENDING' && !done && (
+          {/* Pièces jointes — ouvertes via une URL signée courte, jamais publique */}
+          {app.attachments && app.attachments.length > 0 && (
+            <section className="border-t border-gray-100 pt-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Documents joints</p>
+              <ul className="space-y-1">
+                {app.attachments.map((a, i) => (
+                  <li key={a.key}>
+                    <a href={`/api/admin/enrollments/${app.id}/files/${i}`} target="_blank" rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline text-xs">
+                      📎 {a.label} — {a.name} ({Math.max(1, Math.round(a.size / 1024))} Ko)
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {app.status === 'ACCEPTED' && app.student_id && (
+            <p className="border-t border-gray-100 pt-4 text-xs">
+              <Link href={`/admin/students/${app.student_id}`} className="text-blue-600 hover:underline">
+                Voir la fiche de l&apos;élève créé →
+              </Link>
+            </p>
+          )}
+
+          {/* Décision — seulement si la candidature n'est pas encore tranchée */}
+          {canDecide && !done && (
             <section className="border-t border-gray-100 pt-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Prendre une décision</p>
               <div className="flex gap-2 mb-3">
@@ -129,6 +169,28 @@ function ApplicationModal({ app, onClose }: { app: Application; onClose: () => v
                   </button>
                 ))}
               </div>
+              {decision === 'ACCEPTED' && (
+                <div className="mb-3">
+                  <label className="block text-xs text-gray-500 mb-1">
+                    Classe d&apos;affectation (facultative — l&apos;élève et son parent seront créés à la validation)
+                  </label>
+                  <select value={classId} onChange={e => setClassId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Sans classe pour le moment</option>
+                    {classes.map(c => {
+                      const full = c.capacity != null && c.enrolled >= c.capacity
+                      return (
+                        <option key={c.id} value={c.id} disabled={full}>
+                          {c.level} — {c.name} ({c.enrolled}/{c.capacity ?? '∞'}{full ? ', complète' : ''})
+                        </option>
+                      )
+                    })}
+                  </select>
+                </div>
+              )}
+              {error && (
+                <p className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+              )}
               <textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
@@ -149,7 +211,27 @@ function ApplicationModal({ app, onClose }: { app: Application; onClose: () => v
             </section>
           )}
           {done && (
-            <p className="text-center text-sm text-green-600 font-medium py-2">✓ Décision enregistrée</p>
+            <div className="text-center text-sm py-2 space-y-1">
+              <p className="text-green-600 font-medium">✓ Décision enregistrée</p>
+              {outcome?.studentNumber && (
+                <p className="text-gray-700">
+                  Élève créé — matricule <span className="font-mono font-semibold">{outcome.studentNumber}</span>
+                </p>
+              )}
+              {outcome?.invitation === 'sent' && (
+                <p className="text-xs text-gray-500">Un email d&apos;activation a été envoyé au parent.</p>
+              )}
+              {outcome?.invitation === 'not_sent' && (
+                <p className="text-xs text-amber-600">
+                  L&apos;email d&apos;activation n&apos;a pas pu être envoyé : utilisez « Réinitialiser le mot de passe » depuis la fiche du parent.
+                </p>
+              )}
+              {outcome?.invitation === 'skipped' && (
+                <p className="text-xs text-amber-600">
+                  Aucun email parent renseigné : aucun accès n&apos;a été envoyé. Créez-le depuis la fiche du parent.
+                </p>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -158,11 +240,12 @@ function ApplicationModal({ app, onClose }: { app: Application; onClose: () => v
 }
 
 export function EnrollmentsClient({
-  result, stats, currentFilters,
+  result, stats, currentFilters, classes,
 }: {
   result:         PaginatedResult<Application>
   stats:          Stats
   currentFilters: { status?: string; search?: string; page?: string }
+  classes:        EnrollableClass[]
 }) {
   const [selected, setSelected] = useState<Application | null>(null)
 
@@ -296,7 +379,7 @@ export function EnrollmentsClient({
         )}
       </div>
 
-      {selected && <ApplicationModal app={selected} onClose={() => setSelected(null)} />}
+      {selected && <ApplicationModal app={selected} classes={classes} onClose={() => setSelected(null)} />}
     </>
   )
 }
